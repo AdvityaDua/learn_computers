@@ -1,0 +1,195 @@
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { extname } from 'path';
+import { Activity, ActivityDocument } from './schemas/activity.schema';
+import { CreateActivityDto } from './dto/create-activity.dto';
+import { UpdateActivityDto } from './dto/update-activity.dto';
+
+type ActivityFiles = {
+  descriptionFile?: Express.Multer.File[];
+  attachmentFile?: Express.Multer.File[];
+};
+
+@Injectable()
+export class ActivitiesService {
+  constructor(
+    @InjectModel(Activity.name)
+    private readonly activityModel: Model<ActivityDocument>,
+  ) {}
+
+  uploadImage(file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('imageFile is required');
+    }
+
+    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+    if (!allowed.includes(extname(file.originalname).toLowerCase())) {
+      throw new BadRequestException('Only image files are allowed');
+    }
+
+    return { url: this.toPublicPath(file.path) };
+  }
+
+  async create(dto: CreateActivityDto, files: ActivityFiles, userId: string) {
+    const description = files.descriptionFile?.[0];
+    if (!description) {
+      throw new BadRequestException('descriptionFile (.md) is required');
+    }
+
+    this.ensureMarkdown(description.originalname);
+
+    let parsedTags: string[] = [];
+    if (dto.tags) {
+      try {
+        parsedTags = JSON.parse(dto.tags);
+      } catch {
+        parsedTags = [];
+      }
+    }
+
+    let parsedFileTypes: string[] = [];
+    if (dto.acceptedFileTypes) {
+      try { parsedFileTypes = JSON.parse(dto.acceptedFileTypes); } catch { parsedFileTypes = []; }
+    }
+
+    return this.activityModel.create({
+      title: dto.title,
+      descriptionFilePath: this.toPublicPath(description.path),
+      attachmentFilePath: files.attachmentFile?.[0]
+        ? this.toPublicPath(files.attachmentFile[0].path)
+        : '',
+      dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+      tags: parsedTags,
+      points: dto.points != null ? Number(dto.points) : undefined,
+      createdBy: new Types.ObjectId(userId),
+      requiresSubmission: dto.requiresSubmission === 'true' || dto.requiresSubmission === '1',
+      acceptedFileTypes: parsedFileTypes,
+    });
+  }
+
+  async findAll(page?: number, limit?: number, search?: string) {
+    const query: Record<string, unknown> = {};
+
+    if (search?.trim()) {
+      const pattern = new RegExp(search.trim(), 'i');
+      query.$or = [
+        { title: pattern },
+        { tags: pattern },
+      ];
+    }
+
+    if (!page || !limit) {
+      return this.activityModel.find(query).sort({ createdAt: -1 });
+    }
+
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(100, Math.max(1, limit));
+
+    const [items, total] = await Promise.all([
+      this.activityModel
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit),
+      this.activityModel.countDocuments(query),
+    ]);
+
+    return {
+      items,
+      total,
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+    };
+  }
+
+  async findOne(id: string) {
+    this.ensureObjectId(id);
+    const activity = await this.activityModel.findById(id);
+    if (!activity) {
+      throw new NotFoundException('Activity not found');
+    }
+    return activity;
+  }
+
+  async update(id: string, dto: UpdateActivityDto, files: ActivityFiles) {
+    this.ensureObjectId(id);
+
+    const updateData: Record<string, unknown> = { ...dto };
+
+    if (dto.dueDate) {
+      updateData.dueDate = new Date(dto.dueDate);
+    }
+
+    if (dto.tags !== undefined) {
+      try {
+        updateData.tags = JSON.parse(dto.tags as string);
+      } catch {
+        updateData.tags = [];
+      }
+    }
+
+    if (dto.points != null) {
+      updateData.points = Number(dto.points);
+    }
+    if (dto.requiresSubmission !== undefined) {
+      updateData.requiresSubmission = dto.requiresSubmission === 'true' || dto.requiresSubmission === '1';
+    }
+    if (dto.acceptedFileTypes !== undefined) {
+      try { updateData.acceptedFileTypes = JSON.parse(dto.acceptedFileTypes as string); } catch { updateData.acceptedFileTypes = []; }
+    }
+
+    const description = files.descriptionFile?.[0];
+    if (description) {
+      this.ensureMarkdown(description.originalname);
+      updateData.descriptionFilePath = this.toPublicPath(description.path);
+    }
+
+    const attachment = files.attachmentFile?.[0];
+    if (attachment) {
+      updateData.attachmentFilePath = this.toPublicPath(attachment.path);
+    }
+
+    const activity = await this.activityModel.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!activity) {
+      throw new NotFoundException('Activity not found');
+    }
+
+    return activity;
+  }
+
+  async remove(id: string) {
+    this.ensureObjectId(id);
+    const activity = await this.activityModel.findByIdAndDelete(id);
+    if (!activity) {
+      throw new NotFoundException('Activity not found');
+    }
+
+    return { message: 'Activity deleted successfully' };
+  }
+
+  private toPublicPath(path: string): string {
+    return path.replace(/^uploads\//, '/uploads/').replace(/^\.\//, '/');
+  }
+
+  private ensureMarkdown(filename: string) {
+    if (extname(filename).toLowerCase() !== '.md') {
+      throw new BadRequestException('Description file must be .md format');
+    }
+  }
+
+  private ensureObjectId(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid id format');
+    }
+  }
+}
