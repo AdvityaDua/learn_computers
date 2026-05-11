@@ -20,6 +20,7 @@ export class QuizzesService {
     const descriptionFilePath = await this.writeMarkdownFile(description, 'quiz-description');
     return this.quizModel.create({
       ...dto,
+      classIds: dto.classIds && dto.classIds.length > 0 ? dto.classIds : ['Class 3'],
       description,
       descriptionFilePath,
       createdBy: new Types.ObjectId(userId),
@@ -72,6 +73,9 @@ export class QuizzesService {
   async update(id: string, dto: UpdateQuizDto) {
     this.ensureObjectId(id);
     const patch: Partial<Quiz> & { descriptionFilePath?: string } = { ...dto };
+    if (dto.classIds && dto.classIds.length === 0) {
+      patch.classIds = ['Class 3'];
+    }
     if (dto.description !== undefined) {
       patch.descriptionFilePath = await this.writeMarkdownFile(dto.description, 'quiz-description');
     }

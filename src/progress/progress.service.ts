@@ -18,6 +18,7 @@ import {
 import {
   SubmissionProgress,
   SubmissionProgressDocument,
+  SubmissionReviewStatus,
 } from './schemas/submission-progress.schema';
 import { Chapter, ChapterDocument } from '../lessons/schemas/chapter.schema';
 import { Lesson, LessonDocument } from '../lessons/schemas/lesson.schema';
@@ -27,6 +28,8 @@ import {
   AssignmentDocument,
 } from '../assignments/schemas/assignment.schema';
 import { Activity, ActivityDocument } from '../activities/schemas/activity.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
+import { UserRole } from '../common/constants/roles.enum';
 
 type ChapterLessonItem = {
   type: 'video' | 'quiz' | 'assignment' | 'activity';
@@ -42,6 +45,15 @@ type ChapterLesson = {
   order: number;
   items?: ChapterLessonItem[];
 };
+
+function normalizeReviewStatus(status?: string | null): SubmissionReviewStatus {
+  if (status === 'pending' || status === 'approved' || status === 'rejected' || status === 'resubmit_requested') {
+    return status;
+  }
+
+  // Preserve existing submissions as approved until they are re-submitted into the review flow.
+  return 'approved';
+}
 
 @Injectable()
 export class ProgressService {
@@ -62,6 +74,8 @@ export class ProgressService {
     private readonly assignmentModel: Model<AssignmentDocument>,
     @InjectModel(Activity.name)
     private readonly activityModel: Model<ActivityDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
   ) {}
 
   async getLessonProgress(userId: string) {
@@ -315,14 +329,28 @@ export class ProgressService {
           ? taskRefIds.map(({ taskType, taskId }) => ({ taskType, taskId }))
           : [{ taskId: new Types.ObjectId() }], // no-match placeholder
       })
-      .select('taskType taskId filePath originalName submittedAt')
+      .select('taskType taskId filePath originalName submittedAt reviewStatus reviewedAt reviewFeedback')
       .lean();
 
-    const submittedTaskMap: Record<string, { filePath: string; originalName: string; submittedAt: Date }> =
+    const submittedTaskMap: Record<string, {
+      filePath: string;
+      originalName: string;
+      submittedAt: Date;
+      reviewStatus: SubmissionReviewStatus;
+      reviewedAt: Date | null;
+      reviewFeedback: string;
+    }> =
       Object.fromEntries(
         submissionRows.map((r) => [
           String(r.taskId),
-          { filePath: r.filePath, originalName: r.originalName, submittedAt: r.submittedAt },
+          {
+            filePath: r.filePath,
+            originalName: r.originalName,
+            submittedAt: r.submittedAt,
+            reviewStatus: normalizeReviewStatus((r as any).reviewStatus),
+            reviewedAt: (r as any).reviewedAt ?? null,
+            reviewFeedback: (r as any).reviewFeedback ?? '',
+          },
         ]),
       );
 
@@ -417,6 +445,10 @@ export class ProgressService {
           filePath,
           originalName: file.originalname,
           submittedAt: new Date(),
+          reviewStatus: 'pending',
+          reviewedAt: null,
+          reviewedBy: null,
+          reviewFeedback: '',
         },
       },
       { upsert: true, new: true },
@@ -427,6 +459,81 @@ export class ProgressService {
       filePath,
       originalName: file.originalname,
       submittedAt: new Date(),
+      reviewStatus: 'pending' as const,
+      reviewedAt: null,
+      reviewFeedback: '',
+    };
+  }
+
+  async reviewTaskSubmission(
+    userId: string,
+    taskType: 'assignment' | 'activity',
+    taskId: string,
+    reviewerId: string,
+    reviewStatus?: 'approved' | 'rejected' | 'resubmit_requested',
+    reviewFeedback?: string,
+  ) {
+    this.ensureObjectId(userId, 'Invalid user id format');
+    this.ensureObjectId(taskId, 'Invalid task id format');
+    this.ensureObjectId(reviewerId, 'Invalid reviewer id format');
+
+    if (
+      reviewStatus !== 'approved' &&
+      reviewStatus !== 'rejected' &&
+      reviewStatus !== 'resubmit_requested'
+    ) {
+      throw new BadRequestException(
+        'reviewStatus must be approved, rejected, or resubmit_requested',
+      );
+    }
+
+    // Get existing submission to check if it was previously approved (avoid double-awarding)
+    const existingSubmission = await this.submissionProgressModel
+      .findOne({ userId: new Types.ObjectId(userId), taskType, taskId: new Types.ObjectId(taskId) })
+      .lean();
+
+    const submission = await this.submissionProgressModel.findOneAndUpdate(
+      {
+        userId: new Types.ObjectId(userId),
+        taskType,
+        taskId: new Types.ObjectId(taskId),
+      },
+      {
+        $set: {
+          reviewStatus,
+          reviewFeedback: reviewFeedback?.trim() ?? '',
+          reviewedAt: new Date(),
+          reviewedBy: new Types.ObjectId(reviewerId),
+        },
+      },
+      { new: true },
+    ).lean();
+
+    if (!submission) {
+      throw new NotFoundException('Submission not found');
+    }
+
+    // Award points when transitioning to approved (only if not already approved)
+    if (reviewStatus === 'approved' && (existingSubmission as any)?.reviewStatus !== 'approved') {
+      let task: any = null;
+      if (taskType === 'assignment') {
+        task = await this.assignmentModel.findById(taskId).select('points').lean();
+      } else {
+        task = await this.activityModel.findById(taskId).select('points').lean();
+      }
+      const taskPoints = (task?.points ?? 0) as number;
+      if (taskPoints > 0) {
+        await this.userModel.findByIdAndUpdate(userId, { $inc: { points: taskPoints } });
+      }
+    }
+
+    return {
+      ok: true,
+      taskType: submission.taskType,
+      taskId: String(submission.taskId),
+      reviewStatus: normalizeReviewStatus((submission as any).reviewStatus),
+      reviewedAt: (submission as any).reviewedAt ?? null,
+      reviewFeedback: (submission as any).reviewFeedback ?? '',
     };
   }
 
@@ -459,6 +566,13 @@ export class ProgressService {
     const score =
       questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
 
+    // Check if already completed to avoid double-awarding points
+    const existingQuizProgress = await this.quizProgressModel
+      .findOne({ userId: new Types.ObjectId(userId), quizId: new Types.ObjectId(quizId) })
+      .select('completedAt')
+      .lean();
+    const wasAlreadyCompleted = !!existingQuizProgress?.completedAt;
+
     await this.quizProgressModel.updateOne(
       {
         userId: new Types.ObjectId(userId),
@@ -474,6 +588,14 @@ export class ProgressService {
       },
       { upsert: true },
     );
+
+    // Award points proportional to quiz score (first attempt only)
+    if (!wasAlreadyCompleted) {
+      const pointsEarned = Math.round(score / 10); // 100% = 10 pts, 50% = 5 pts
+      if (pointsEarned > 0) {
+        await this.userModel.findByIdAndUpdate(userId, { $inc: { points: pointsEarned } });
+      }
+    }
 
     return {
       results,
@@ -547,7 +669,7 @@ export class ProgressService {
         .lean(),
       this.submissionProgressModel
         .find({ userId: userOid })
-        .select('taskType taskId originalName submittedAt')
+        .select('taskType taskId originalName submittedAt reviewStatus reviewedAt reviewFeedback')
         .lean(),
     ]);
 
@@ -596,6 +718,9 @@ export class ProgressService {
       title: taskTitleMap[String(r.taskId)] ?? 'Untitled Task',
       originalName: r.originalName,
       submittedAt: r.submittedAt,
+      reviewStatus: normalizeReviewStatus((r as any).reviewStatus),
+      reviewedAt: (r as any).reviewedAt ?? null,
+      reviewFeedback: (r as any).reviewFeedback ?? '',
     })).sort((a, b) => new Date(b.submittedAt!).getTime() - new Date(a.submittedAt!).getTime());
 
     const totalLessons = Object.keys(lessonMeta).length;
@@ -606,6 +731,206 @@ export class ProgressService {
       completedLessons,
       quizAttempts,
       submissions,
+    };
+  }
+
+  async getQuizStats(schoolId?: string, classId?: string) {
+    // Basic implementation: fetch all quiz progress and group
+    const match: any = {};
+    if (schoolId) match['user.schoolId'] = new Types.ObjectId(schoolId);
+    if (classId) match['user.classIds'] = classId;
+
+    const pipeline = [
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      { $unwind: '$user' },
+    ];
+
+    if (Object.keys(match).length > 0) {
+      pipeline.push({ $match: match } as any);
+    }
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: 'quizzes',
+          localField: 'quizId',
+          foreignField: '_id',
+          as: 'quiz',
+        },
+      } as any,
+      { $unwind: '$quiz' },
+      {
+        $group: {
+          _id: { quizId: '$quizId', title: '$quiz.title' },
+          attempts: { $sum: 1 },
+          avgScore: { $avg: '$score' },
+          maxScore: { $max: '$score' },
+        },
+      } as any,
+      {
+        $project: {
+          _id: 0,
+          quizId: '$_id.quizId',
+          title: '$_id.title',
+          attempts: 1,
+          avgScore: { $round: ['$avgScore', 1] },
+          maxScore: 1,
+        },
+      } as any,
+      { $sort: { title: 1 } } as any,
+    );
+
+    return this.quizProgressModel.aggregate(pipeline);
+  }
+
+  /**
+   * Get the Top Learners leaderboard for a specific class and/or school.
+   * Only students who have completed ALL lessons AND ALL quizzes qualify.
+   * Results are ranked by accumulated points descending.
+   */
+  async getLeaderboard(classId?: string, schoolId?: string) {
+    // Find students matching class/school filters
+    const userFilter: any = { role: UserRole.Student, isActive: true };
+    if (classId) userFilter.classIds = classId;
+    if (schoolId) {
+      if (!Types.ObjectId.isValid(schoolId)) throw new BadRequestException('Invalid schoolId');
+      userFilter.schoolId = new Types.ObjectId(schoolId);
+    }
+
+    const students = await this.userModel
+      .find(userFilter)
+      .select('fullName profileImage points classIds schoolId')
+      .lean();
+
+    if (students.length === 0) return [];
+
+    // Build global curriculum info: all lesson IDs and quiz IDs
+    const chapters = await this.chapterModel.find().lean();
+    const allLessonIds: string[] = [];
+    const allQuizIds: string[] = [];
+
+    for (const chapter of chapters) {
+      for (const lesson of (chapter as any).lessons ?? []) {
+        allLessonIds.push(String(lesson._id));
+        for (const item of (lesson.items ?? []) as ChapterLessonItem[]) {
+          if (item.type === 'quiz') {
+            allQuizIds.push(String(item.refId));
+          }
+        }
+      }
+    }
+
+    if (allLessonIds.length === 0) return [];
+
+    const studentIds = students.map((s) => new Types.ObjectId(String(s._id)));
+
+    // Fetch all lesson + quiz completions for matching students in bulk
+    const [lessonRows, quizRows] = await Promise.all([
+      this.progressModel
+        .find({ userId: { $in: studentIds }, completedAt: { $ne: null } })
+        .select('userId lessonId')
+        .lean(),
+      this.quizProgressModel
+        .find({ userId: { $in: studentIds }, completedAt: { $ne: null } })
+        .select('userId quizId')
+        .lean(),
+    ]);
+
+    // Group by userId
+    const lessonsByUser = new Map<string, Set<string>>();
+    for (const row of lessonRows) {
+      const uid = String(row.userId);
+      if (!lessonsByUser.has(uid)) lessonsByUser.set(uid, new Set());
+      lessonsByUser.get(uid)!.add(String(row.lessonId));
+    }
+
+    const quizzesByUser = new Map<string, Set<string>>();
+    for (const row of quizRows) {
+      const uid = String(row.userId);
+      if (!quizzesByUser.has(uid)) quizzesByUser.set(uid, new Set());
+      quizzesByUser.get(uid)!.add(String(row.quizId));
+    }
+
+    const allLessonSet = new Set(allLessonIds);
+    const allQuizSet = new Set(allQuizIds);
+    const totalLessons = allLessonIds.length;
+    const totalQuizzes = allQuizIds.length;
+
+    // Filter to fully completed students only, then rank by points
+    const qualified = students
+      .map((s) => {
+        const uid = String(s._id);
+        const completedLessons = lessonsByUser.get(uid) ?? new Set<string>();
+        const completedQuizzes = quizzesByUser.get(uid) ?? new Set<string>();
+
+        const completedLessonCount = [...completedLessons].filter((id) => allLessonSet.has(id)).length;
+        const completedQuizCount = [...completedQuizzes].filter((id) => allQuizSet.has(id)).length;
+
+        const allLessonsComplete = completedLessonCount >= totalLessons;
+        const allQuizzesComplete = totalQuizzes === 0 || completedQuizCount >= totalQuizzes;
+
+        return {
+          userId: uid,
+          fullName: (s as any).fullName,
+          profileImage: (s as any).profileImage ?? null,
+          points: (s as any).points ?? 0,
+          completedLessons: completedLessonCount,
+          totalLessons,
+          completedQuizzes: completedQuizCount,
+          totalQuizzes,
+          isTopLearner: allLessonsComplete && allQuizzesComplete,
+        };
+      })
+      .filter((s) => s.isTopLearner)
+      .sort((a, b) => b.points - a.points || a.fullName.localeCompare(b.fullName));
+
+    return qualified.map((s, idx) => ({ ...s, rank: idx + 1 }));
+  }
+
+  /**
+   * Teacher/admin deducts points from a student with a required reason.
+   */
+  async deductStudentPoints(
+    teacherId: string,
+    studentId: string,
+    points: number,
+    reason: string,
+  ) {
+    this.ensureObjectId(teacherId, 'Invalid teacher id');
+    this.ensureObjectId(studentId, 'Invalid student id');
+
+    if (!Number.isInteger(points) || points <= 0) {
+      throw new BadRequestException('points must be a positive integer');
+    }
+    if (!reason?.trim()) {
+      throw new BadRequestException('reason is required for point deduction');
+    }
+
+    const student = await this.userModel.findById(studentId).select('points fullName').lean();
+    if (!student) throw new NotFoundException('Student not found');
+
+    const currentPoints = (student as any).points ?? 0;
+    const newPoints = Math.max(0, currentPoints - points);
+
+    await this.userModel.findByIdAndUpdate(studentId, { $set: { points: newPoints } });
+
+    return {
+      ok: true,
+      studentId,
+      fullName: (student as any).fullName,
+      pointsDeducted: currentPoints - newPoints,
+      previousPoints: currentPoints,
+      newPoints,
+      reason: reason.trim(),
+      deductedBy: teacherId,
+      deductedAt: new Date(),
     };
   }
 }

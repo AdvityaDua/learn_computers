@@ -2,11 +2,14 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
+  Delete,
   UseGuards,
   UseInterceptors,
-  UploadedFile,
   Body,
   Request,
+  Param,
+  UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -16,10 +19,18 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/constants/roles.enum';
+import { CreateUserDto } from './dto/create-user.dto';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  @Post()
+  async create(@Body() dto: CreateUserDto) {
+    return this.usersService.create(dto);
+  }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Admin)
@@ -70,5 +81,40 @@ export class UsersController {
       updateData.profileImage = `/uploads/profiles/${file.filename}`;
     }
     return this.usersService.update(req.user.sub, updateData);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  @Get('teachers')
+  async getTeachers() {
+    return this.usersService.getTeachers();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  @Patch(':id/school')
+  async assignTeacherToSchool(@Param('id') id: string, @Body('schoolId') schoolId: string) {
+    return this.usersService.assignSchool(id, schoolId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  @Patch(':id/classes')
+  async assignTeacherToClasses(@Param('id') id: string, @Body('classIds') classIds: string[]) {
+    return this.usersService.assignClasses(id, classIds);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() body: any) {
+    return this.usersService.update(id, body);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    return this.usersService.delete(id);
   }
 }

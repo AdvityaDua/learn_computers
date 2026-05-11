@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 import { UserRole } from '../../common/constants/roles.enum';
 
 export type UserDocument = HydratedDocument<User>;
@@ -26,6 +26,22 @@ export class User {
 
   @Prop({ trim: true })
   profileImage?: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'School' })
+  schoolId?: Types.ObjectId;
+
+  @Prop({ type: [String], default: [] })
+  classIds: string[];
+
+  @Prop({ trim: true })
+  phone?: string;
+
+  @Prop({ default: true })
+  isActive: boolean;
+
+  /** Accumulated points from quiz scores and approved task submissions */
+  @Prop({ type: Number, default: 0, min: 0 })
+  points: number;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

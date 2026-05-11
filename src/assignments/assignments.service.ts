@@ -51,6 +51,11 @@ export class AssignmentsService {
       try { parsedFileTypes = JSON.parse(dto.acceptedFileTypes); } catch { parsedFileTypes = []; }
     }
 
+    let parsedClassIds: string[] = ['Class 3'];
+    if (dto.classIds) {
+      try { parsedClassIds = JSON.parse(dto.classIds); } catch { parsedClassIds = ['Class 3']; }
+    }
+
     return this.assignmentModel.create({
       title: dto.title,
       descriptionFilePath: this.toPublicPath(description.path),
@@ -63,6 +68,7 @@ export class AssignmentsService {
       createdBy: new Types.ObjectId(userId),
       requiresSubmission: dto.requiresSubmission === 'true' || dto.requiresSubmission === '1',
       acceptedFileTypes: parsedFileTypes,
+      classIds: parsedClassIds,
     });
   }
 
@@ -126,6 +132,9 @@ export class AssignmentsService {
     }
     if (dto.acceptedFileTypes !== undefined) {
       try { updateData.acceptedFileTypes = JSON.parse(dto.acceptedFileTypes as string); } catch { updateData.acceptedFileTypes = []; }
+    }
+    if (dto.classIds !== undefined) {
+      try { updateData.classIds = JSON.parse(dto.classIds as string); } catch { updateData.classIds = ['Class 3']; }
     }
 
     const description = files.descriptionFile?.[0];

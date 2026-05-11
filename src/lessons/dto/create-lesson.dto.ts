@@ -17,4 +17,9 @@ export class CreateLessonDto {
   @IsOptional()
   @IsString()
   tags?: string;
+
+  /** JSON-encoded string[] — e.g. '["Class 3"]' */
+  @IsOptional()
+  @IsString()
+  classIds?: string;
 }

@@ -13,6 +13,9 @@ import { ProgressModule } from './progress/progress.module';
 
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
+import { SchoolsModule } from './schools/schools.module';
+import { ClassesModule } from './classes/classes.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -32,6 +35,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     LessonsModule,
     MaterialsModule,
     ProgressModule,
+    SchoolsModule,
+    ClassesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

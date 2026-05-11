@@ -28,6 +28,9 @@ export class Quiz {
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   createdBy: Types.ObjectId;
+
+  @Prop({ type: [String], default: ['Class 3'] })
+  classIds: string[];
 }
 
 export type QuizDocument = HydratedDocument<Quiz>;

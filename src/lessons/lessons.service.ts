@@ -34,9 +34,15 @@ export class LessonsService {
       try { parsedTags = JSON.parse(dto.tags); } catch { parsedTags = []; }
     }
 
+    let parsedClassIds: string[] = ['Class 3'];
+    if (dto.classIds) {
+      try { parsedClassIds = JSON.parse(dto.classIds); } catch { parsedClassIds = ['Class 3']; }
+    }
+
     return this.lessonModel.create({
       ...dto,
       tags: parsedTags,
+      classIds: parsedClassIds,
       descriptionFilePath: this.toPublicPath(description.path),
       documentFilePath: files.documentFile?.[0]
         ? this.toPublicPath(files.documentFile[0].path)
@@ -107,6 +113,10 @@ export class LessonsService {
 
     if (dto.tags !== undefined) {
       try { updateData.tags = JSON.parse(dto.tags as string); } catch { updateData.tags = []; }
+    }
+
+    if (dto.classIds !== undefined) {
+      try { updateData.classIds = JSON.parse(dto.classIds as string); } catch { updateData.classIds = ['Class 3']; }
     }
 
     const description = files.descriptionFile?.[0];

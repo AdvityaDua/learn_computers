@@ -28,4 +28,9 @@ export class CreateAssignmentDto {
   @IsOptional()
   @IsString()
   acceptedFileTypes?: string;
+
+  /** JSON-encoded string[] — e.g. '["Class 3"]' */
+  @IsOptional()
+  @IsString()
+  classIds?: string;
 }

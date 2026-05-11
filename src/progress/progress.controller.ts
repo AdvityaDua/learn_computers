@@ -2,12 +2,14 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   Param,
   Post,
   Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
@@ -96,5 +98,58 @@ export class ProgressController {
   @Roles(UserRole.Admin)
   getAdminUserProgress(@Param('userId') userId: string) {
     return this.progressService.getAdminUserProgress(userId);
+  }
+
+  @Patch('admin/users/:userId/tasks/:taskType/:taskId/review')
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  reviewTaskSubmission(
+    @Req() req: Request & { user: AuthUser },
+    @Param('userId') userId: string,
+    @Param('taskType') taskType: 'assignment' | 'activity',
+    @Param('taskId') taskId: string,
+    @Body() body: { reviewStatus?: 'approved' | 'rejected' | 'resubmit_requested'; reviewFeedback?: string },
+  ) {
+    return this.progressService.reviewTaskSubmission(
+      userId,
+      taskType,
+      taskId,
+      req.user.sub,
+      body.reviewStatus,
+      body.reviewFeedback,
+    );
+  }
+
+  @Get('admin/quiz-stats')
+  @Roles(UserRole.Admin)
+  getQuizStats(
+    @Query('schoolId') schoolId?: string,
+    @Query('classId') classId?: string,
+  ) {
+    return this.progressService.getQuizStats(schoolId, classId);
+  }
+
+  /** Top Learners leaderboard — students who completed all lessons + quizzes, ranked by points */
+  @Get('leaderboard')
+  getLeaderboard(
+    @Query('classId') classId?: string,
+    @Query('schoolId') schoolId?: string,
+  ) {
+    return this.progressService.getLeaderboard(classId, schoolId);
+  }
+
+  /** Teacher/admin deducts points from a student */
+  @Post('students/:studentId/deduct-points')
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  deductStudentPoints(
+    @Req() req: Request & { user: AuthUser },
+    @Param('studentId') studentId: string,
+    @Body() body: { points: number; reason: string },
+  ) {
+    return this.progressService.deductStudentPoints(
+      req.user.sub,
+      studentId,
+      body.points,
+      body.reason,
+    );
   }
 }

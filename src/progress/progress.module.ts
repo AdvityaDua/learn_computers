@@ -23,6 +23,7 @@ import {
   AssignmentSchema,
 } from '../assignments/schemas/assignment.schema';
 import { Activity, ActivitySchema } from '../activities/schemas/activity.schema';
+import { User, UserSchema } from '../users/schemas/user.schema';
 import { buildDiskStorage } from '../common/utils/file-upload.util';
 
 @Module({
@@ -37,6 +38,7 @@ import { buildDiskStorage } from '../common/utils/file-upload.util';
       { name: Quiz.name, schema: QuizSchema },
       { name: Assignment.name, schema: AssignmentSchema },
       { name: Activity.name, schema: ActivitySchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [ProgressController],

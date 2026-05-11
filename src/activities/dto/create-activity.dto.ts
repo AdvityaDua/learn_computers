@@ -31,4 +31,9 @@ export class CreateActivityDto {
   @IsOptional()
   @IsString()
   acceptedFileTypes?: string;
+
+  // JSON-encoded string[]
+  @IsOptional()
+  @IsString()
+  classIds?: string;
 }
