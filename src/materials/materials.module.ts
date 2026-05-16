@@ -5,7 +5,11 @@ import { MaterialsService } from './materials.service';
 import { MaterialsController } from './materials.controller';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: Material.name, schema: MaterialSchema }])],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Material.name, schema: MaterialSchema },
+    ]),
+  ],
   controllers: [MaterialsController],
   providers: [MaterialsService],
   exports: [MaterialsService],

@@ -27,9 +27,16 @@ import {
   Assignment,
   AssignmentDocument,
 } from '../assignments/schemas/assignment.schema';
-import { Activity, ActivityDocument } from '../activities/schemas/activity.schema';
+import {
+  Activity,
+  ActivityDocument,
+} from '../activities/schemas/activity.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { UserRole } from '../common/constants/roles.enum';
+import {
+  TeacherDeadline,
+  TeacherDeadlineDocument,
+} from './schemas/teacher-deadline.schema';
 
 type ChapterLessonItem = {
   type: 'video' | 'quiz' | 'assignment' | 'activity';
@@ -47,7 +54,12 @@ type ChapterLesson = {
 };
 
 function normalizeReviewStatus(status?: string | null): SubmissionReviewStatus {
-  if (status === 'pending' || status === 'approved' || status === 'rejected' || status === 'resubmit_requested') {
+  if (
+    status === 'pending' ||
+    status === 'approved' ||
+    status === 'rejected' ||
+    status === 'resubmit_requested'
+  ) {
     return status;
   }
 
@@ -76,6 +88,8 @@ export class ProgressService {
     private readonly activityModel: Model<ActivityDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @InjectModel(TeacherDeadline.name)
+    private readonly teacherDeadlineModel: Model<TeacherDeadlineDocument>,
   ) {}
 
   async getLessonProgress(userId: string) {
@@ -102,11 +116,17 @@ export class ProgressService {
 
     const [completedLessonRows, completedQuizRows] = await Promise.all([
       this.progressModel
-        .find({ userId: new Types.ObjectId(userId), completedAt: { $ne: null } })
+        .find({
+          userId: new Types.ObjectId(userId),
+          completedAt: { $ne: null },
+        })
         .select('lessonId')
         .lean(),
       this.quizProgressModel
-        .find({ userId: new Types.ObjectId(userId), completedAt: { $ne: null } })
+        .find({
+          userId: new Types.ObjectId(userId),
+          completedAt: { $ne: null },
+        })
         .select('quizId')
         .lean(),
     ]);
@@ -125,14 +145,18 @@ export class ProgressService {
         .filter((id) => allQuizRefIdSet.has(id)),
     );
 
-    const lessonRatio = totalLessons > 0 ? completedLessonSet.size / totalLessons : 0;
-    const quizRatio = totalQuizzes > 0 ? completedQuizSet.size / totalQuizzes : 1;
+    const lessonRatio =
+      totalLessons > 0 ? completedLessonSet.size / totalLessons : 0;
+    const quizRatio =
+      totalQuizzes > 0 ? completedQuizSet.size / totalQuizzes : 1;
 
     let completionPercentage: number;
     if (totalQuizzes === 0) {
       completionPercentage = Math.round(lessonRatio * 100);
     } else {
-      completionPercentage = Math.round((lessonRatio * 0.5 + quizRatio * 0.5) * 100);
+      completionPercentage = Math.round(
+        (lessonRatio * 0.5 + quizRatio * 0.5) * 100,
+      );
     }
 
     return {
@@ -147,7 +171,11 @@ export class ProgressService {
     };
   }
 
-  async markLessonCompleted(userId: string, chapterId: string, lessonId: string) {
+  async markLessonCompleted(
+    userId: string,
+    chapterId: string,
+    lessonId: string,
+  ) {
     await this.assertLessonBelongsToChapter(chapterId, lessonId);
 
     const now = new Date();
@@ -170,7 +198,11 @@ export class ProgressService {
     return this.getLessonProgress(userId);
   }
 
-  async markLessonAccessed(userId: string, chapterId: string, lessonId: string) {
+  async markLessonAccessed(
+    userId: string,
+    chapterId: string,
+    lessonId: string,
+  ) {
     await this.assertLessonBelongsToChapter(chapterId, lessonId);
 
     await this.progressModel.updateOne(
@@ -204,7 +236,9 @@ export class ProgressService {
       .slice()
       .sort((a: ChapterLesson, b: ChapterLesson) => a.order - b.order);
 
-    const lesson = lessons.find((entry: ChapterLesson) => String(entry._id) === lessonId);
+    const lesson = lessons.find(
+      (entry: ChapterLesson) => String(entry._id) === lessonId,
+    );
     if (!lesson) {
       throw new NotFoundException('Lesson not found in chapter');
     }
@@ -319,40 +353,50 @@ export class ProgressService {
 
     // Collect assignment/activity IDs that require submission
     const taskRefIds = (lesson.items ?? [])
-      .filter((item: any) => item.type === 'assignment' || item.type === 'activity')
-      .map((item: any) => ({ taskType: item.type, taskId: new Types.ObjectId(String(item.refId)) }));
+      .filter(
+        (item: any) => item.type === 'assignment' || item.type === 'activity',
+      )
+      .map((item: any) => ({
+        taskType: item.type,
+        taskId: new Types.ObjectId(String(item.refId)),
+      }));
 
     const submissionRows = await this.submissionProgressModel
       .find({
         userId: new Types.ObjectId(userId),
-        $or: taskRefIds.length > 0
-          ? taskRefIds.map(({ taskType, taskId }) => ({ taskType, taskId }))
-          : [{ taskId: new Types.ObjectId() }], // no-match placeholder
+        $or:
+          taskRefIds.length > 0
+            ? taskRefIds.map(({ taskType, taskId }) => ({ taskType, taskId }))
+            : [{ taskId: new Types.ObjectId() }], // no-match placeholder
       })
-      .select('taskType taskId filePath originalName submittedAt reviewStatus reviewedAt reviewFeedback')
+      .select(
+        'taskType taskId filePath originalName submittedAt reviewStatus reviewedAt reviewFeedback',
+      )
       .lean();
 
-    const submittedTaskMap: Record<string, {
-      filePath: string;
-      originalName: string;
-      submittedAt: Date;
-      reviewStatus: SubmissionReviewStatus;
-      reviewedAt: Date | null;
-      reviewFeedback: string;
-    }> =
-      Object.fromEntries(
-        submissionRows.map((r) => [
-          String(r.taskId),
-          {
-            filePath: r.filePath,
-            originalName: r.originalName,
-            submittedAt: r.submittedAt,
-            reviewStatus: normalizeReviewStatus((r as any).reviewStatus),
-            reviewedAt: (r as any).reviewedAt ?? null,
-            reviewFeedback: (r as any).reviewFeedback ?? '',
-          },
-        ]),
-      );
+    const submittedTaskMap: Record<
+      string,
+      {
+        filePath: string;
+        originalName: string;
+        submittedAt: Date;
+        reviewStatus: SubmissionReviewStatus;
+        reviewedAt: Date | null;
+        reviewFeedback: string;
+      }
+    > = Object.fromEntries(
+      submissionRows.map((r) => [
+        String(r.taskId),
+        {
+          filePath: r.filePath,
+          originalName: r.originalName,
+          submittedAt: r.submittedAt,
+          reviewStatus: normalizeReviewStatus((r as any).reviewStatus),
+          reviewedAt: (r as any).reviewedAt ?? null,
+          reviewFeedback: (r as any).reviewFeedback ?? '',
+        },
+      ]),
+    );
 
     return {
       chapter: {
@@ -408,7 +452,9 @@ export class ProgressService {
     }
 
     if (!task.requiresSubmission) {
-      throw new BadRequestException('This task does not require a file submission');
+      throw new BadRequestException(
+        'This task does not require a file submission',
+      );
     }
 
     // Validate accepted file types
@@ -420,7 +466,21 @@ export class ProgressService {
         image: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
         document: ['doc', 'docx', 'pdf'],
         zip: ['zip', 'tar', 'gz', 'rar', '7z'],
-        code: ['js', 'ts', 'py', 'java', 'c', 'cpp', 'cs', 'rb', 'go', 'html', 'css', 'jsx', 'tsx'],
+        code: [
+          'js',
+          'ts',
+          'py',
+          'java',
+          'c',
+          'cpp',
+          'cs',
+          'rb',
+          'go',
+          'html',
+          'css',
+          'jsx',
+          'tsx',
+        ],
       };
       const allowed = acceptedTypes.flatMap((t) => typeMap[t] ?? [t]);
       if (!allowed.includes(ext)) {
@@ -472,6 +532,7 @@ export class ProgressService {
     reviewerId: string,
     reviewStatus?: 'approved' | 'rejected' | 'resubmit_requested',
     reviewFeedback?: string,
+    pointsAwarded?: number,
   ) {
     this.ensureObjectId(userId, 'Invalid user id format');
     this.ensureObjectId(taskId, 'Invalid task id format');
@@ -489,41 +550,65 @@ export class ProgressService {
 
     // Get existing submission to check if it was previously approved (avoid double-awarding)
     const existingSubmission = await this.submissionProgressModel
-      .findOne({ userId: new Types.ObjectId(userId), taskType, taskId: new Types.ObjectId(taskId) })
-      .lean();
-
-    const submission = await this.submissionProgressModel.findOneAndUpdate(
-      {
+      .findOne({
         userId: new Types.ObjectId(userId),
         taskType,
         taskId: new Types.ObjectId(taskId),
-      },
-      {
-        $set: {
-          reviewStatus,
-          reviewFeedback: reviewFeedback?.trim() ?? '',
-          reviewedAt: new Date(),
-          reviewedBy: new Types.ObjectId(reviewerId),
+      })
+      .lean();
+
+    const submission = await this.submissionProgressModel
+      .findOneAndUpdate(
+        {
+          userId: new Types.ObjectId(userId),
+          taskType,
+          taskId: new Types.ObjectId(taskId),
         },
-      },
-      { new: true },
-    ).lean();
+        {
+          $set: {
+            reviewStatus,
+            reviewFeedback: reviewFeedback?.trim() ?? '',
+            reviewedAt: new Date(),
+            reviewedBy: new Types.ObjectId(reviewerId),
+            ...(reviewStatus === 'approved' && pointsAwarded != null
+              ? { pointsAwarded }
+              : {}),
+          },
+        },
+        { new: true },
+      )
+      .lean();
 
     if (!submission) {
       throw new NotFoundException('Submission not found');
     }
 
     // Award points when transitioning to approved (only if not already approved)
-    if (reviewStatus === 'approved' && (existingSubmission as any)?.reviewStatus !== 'approved') {
-      let task: any = null;
-      if (taskType === 'assignment') {
-        task = await this.assignmentModel.findById(taskId).select('points').lean();
-      } else {
-        task = await this.activityModel.findById(taskId).select('points').lean();
+    if (
+      reviewStatus === 'approved' &&
+      (existingSubmission as any)?.reviewStatus !== 'approved'
+    ) {
+      // Use explicit pointsAwarded if provided, otherwise fall back to task default points
+      let awardPoints = pointsAwarded ?? 0;
+      if (awardPoints === 0) {
+        let task: any = null;
+        if (taskType === 'assignment') {
+          task = await this.assignmentModel
+            .findById(taskId)
+            .select('points')
+            .lean();
+        } else {
+          task = await this.activityModel
+            .findById(taskId)
+            .select('points')
+            .lean();
+        }
+        awardPoints = (task?.points ?? 0) as number;
       }
-      const taskPoints = (task?.points ?? 0) as number;
-      if (taskPoints > 0) {
-        await this.userModel.findByIdAndUpdate(userId, { $inc: { points: taskPoints } });
+      if (awardPoints > 0) {
+        await this.userModel.findByIdAndUpdate(userId, {
+          $inc: { points: awardPoints },
+        });
       }
     }
 
@@ -564,11 +649,16 @@ export class ProgressService {
 
     const correctCount = results.filter((r: any) => r.correct).length;
     const score =
-      questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
+      questions.length > 0
+        ? Math.round((correctCount / questions.length) * 100)
+        : 0;
 
     // Check if already completed to avoid double-awarding points
     const existingQuizProgress = await this.quizProgressModel
-      .findOne({ userId: new Types.ObjectId(userId), quizId: new Types.ObjectId(quizId) })
+      .findOne({
+        userId: new Types.ObjectId(userId),
+        quizId: new Types.ObjectId(quizId),
+      })
       .select('completedAt')
       .lean();
     const wasAlreadyCompleted = !!existingQuizProgress?.completedAt;
@@ -593,7 +683,9 @@ export class ProgressService {
     if (!wasAlreadyCompleted) {
       const pointsEarned = Math.round(score / 10); // 100% = 10 pts, 50% = 5 pts
       if (pointsEarned > 0) {
-        await this.userModel.findByIdAndUpdate(userId, { $inc: { points: pointsEarned } });
+        await this.userModel.findByIdAndUpdate(userId, {
+          $inc: { points: pointsEarned },
+        });
       }
     }
 
@@ -605,11 +697,17 @@ export class ProgressService {
     };
   }
 
-  private async assertLessonBelongsToChapter(chapterId: string, lessonId: string) {
+  private async assertLessonBelongsToChapter(
+    chapterId: string,
+    lessonId: string,
+  ) {
     this.ensureObjectId(chapterId, 'Invalid chapter id format');
     this.ensureObjectId(lessonId, 'Invalid lesson id format');
 
-    const chapter = await this.chapterModel.findById(chapterId).select('lessons').lean();
+    const chapter = await this.chapterModel
+      .findById(chapterId)
+      .select('lessons')
+      .lean();
     if (!chapter) {
       throw new NotFoundException('Chapter not found');
     }
@@ -629,7 +727,10 @@ export class ProgressService {
     }
   }
 
-  private async resolveMarkdownText(path: string | undefined, fallback: string) {
+  private async resolveMarkdownText(
+    path: string | undefined,
+    fallback: string,
+  ) {
     if (!path) return fallback;
     try {
       const absolutePath = join(process.cwd(), path.replace(/^\//, ''));
@@ -647,7 +748,10 @@ export class ProgressService {
     const chapters = await this.chapterModel.find().lean();
 
     // Build a map of lessonId → { chapterTitle, lessonTitle }
-    const lessonMeta: Record<string, { chapterTitle: string; lessonTitle: string; chapterOrder: number }> = {};
+    const lessonMeta: Record<
+      string,
+      { chapterTitle: string; lessonTitle: string; chapterOrder: number }
+    > = {};
     for (const chapter of chapters) {
       for (const lesson of (chapter as any).lessons ?? []) {
         lessonMeta[String(lesson._id)] = {
@@ -669,62 +773,104 @@ export class ProgressService {
         .lean(),
       this.submissionProgressModel
         .find({ userId: userOid })
-        .select('taskType taskId originalName submittedAt reviewStatus reviewedAt reviewFeedback')
+        .select(
+          'taskType taskId originalName submittedAt reviewStatus reviewedAt reviewFeedback',
+        )
         .lean(),
     ]);
 
-    const completedLessons = lessonRows.map((r) => {
-      const meta = lessonMeta[String(r.lessonId)] ?? {};
-      return {
-        lessonId: String(r.lessonId),
-        chapterId: String(r.chapterId),
-        chapterTitle: meta.chapterTitle ?? 'Unknown Chapter',
-        lessonTitle: meta.lessonTitle ?? 'Unknown Lesson',
-        completedAt: r.completedAt,
-        lastAccessedAt: r.lastAccessedAt,
-      };
-    }).sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime());
+    const completedLessons = lessonRows
+      .map((r) => {
+        const meta = lessonMeta[String(r.lessonId)] ?? {};
+        return {
+          lessonId: String(r.lessonId),
+          chapterId: String(r.chapterId),
+          chapterTitle: meta.chapterTitle ?? 'Unknown Chapter',
+          lessonTitle: meta.lessonTitle ?? 'Unknown Lesson',
+          completedAt: r.completedAt,
+          lastAccessedAt: r.lastAccessedAt,
+        };
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.completedAt!).getTime() -
+          new Date(a.completedAt!).getTime(),
+      );
 
     // Enrich quiz rows with quiz titles
     const quizIds = quizRows.map((r) => r.quizId);
-    const quizDocs = await this.quizModel.find({ _id: { $in: quizIds } }).select('title').lean();
-    const quizTitleMap: Record<string, string> = Object.fromEntries(quizDocs.map((q) => [String(q._id), (q as any).title]));
+    const quizDocs = await this.quizModel
+      .find({ _id: { $in: quizIds } })
+      .select('title')
+      .lean();
+    const quizTitleMap: Record<string, string> = Object.fromEntries(
+      quizDocs.map((q) => [String(q._id), (q as any).title]),
+    );
 
-    const quizAttempts = quizRows.map((r: any) => ({
-      quizId: String(r.quizId),
-      title: quizTitleMap[String(r.quizId)] ?? 'Untitled Quiz',
-      score: r.score ?? 0,
-      totalQuestions: r.totalQuestions ?? 0,
-      completedAt: r.completedAt,
-    })).sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime());
+    const quizAttempts = quizRows
+      .map((r: any) => ({
+        quizId: String(r.quizId),
+        title: quizTitleMap[String(r.quizId)] ?? 'Untitled Quiz',
+        score: r.score ?? 0,
+        totalQuestions: r.totalQuestions ?? 0,
+        completedAt: r.completedAt,
+      }))
+      .sort(
+        (a, b) =>
+          new Date(b.completedAt!).getTime() -
+          new Date(a.completedAt!).getTime(),
+      );
 
     // Enrich submission rows with assignment/activity titles
-    const assignmentIds = submissionRows.filter((r) => r.taskType === 'assignment').map((r) => r.taskId);
-    const activityIds = submissionRows.filter((r) => r.taskType === 'activity').map((r) => r.taskId);
+    const assignmentIds = submissionRows
+      .filter((r) => r.taskType === 'assignment')
+      .map((r) => r.taskId);
+    const activityIds = submissionRows
+      .filter((r) => r.taskType === 'activity')
+      .map((r) => r.taskId);
 
     const [assignmentDocs, activityDocs] = await Promise.all([
-      this.assignmentModel.find({ _id: { $in: assignmentIds } }).select('title').lean(),
-      this.activityModel.find({ _id: { $in: activityIds } }).select('title').lean(),
+      this.assignmentModel
+        .find({ _id: { $in: assignmentIds } })
+        .select('title')
+        .lean(),
+      this.activityModel
+        .find({ _id: { $in: activityIds } })
+        .select('title')
+        .lean(),
     ]);
 
     const taskTitleMap: Record<string, string> = {
-      ...Object.fromEntries(assignmentDocs.map((d) => [String(d._id), (d as any).title])),
-      ...Object.fromEntries(activityDocs.map((d) => [String(d._id), (d as any).title])),
+      ...Object.fromEntries(
+        assignmentDocs.map((d) => [String(d._id), (d as any).title]),
+      ),
+      ...Object.fromEntries(
+        activityDocs.map((d) => [String(d._id), (d as any).title]),
+      ),
     };
 
-    const submissions = submissionRows.map((r) => ({
-      taskType: r.taskType,
-      taskId: String(r.taskId),
-      title: taskTitleMap[String(r.taskId)] ?? 'Untitled Task',
-      originalName: r.originalName,
-      submittedAt: r.submittedAt,
-      reviewStatus: normalizeReviewStatus((r as any).reviewStatus),
-      reviewedAt: (r as any).reviewedAt ?? null,
-      reviewFeedback: (r as any).reviewFeedback ?? '',
-    })).sort((a, b) => new Date(b.submittedAt!).getTime() - new Date(a.submittedAt!).getTime());
+    const submissions = submissionRows
+      .map((r) => ({
+        taskType: r.taskType,
+        taskId: String(r.taskId),
+        title: taskTitleMap[String(r.taskId)] ?? 'Untitled Task',
+        originalName: r.originalName,
+        submittedAt: r.submittedAt,
+        reviewStatus: normalizeReviewStatus((r as any).reviewStatus),
+        reviewedAt: (r as any).reviewedAt ?? null,
+        reviewFeedback: (r as any).reviewFeedback ?? '',
+      }))
+      .sort(
+        (a, b) =>
+          new Date(b.submittedAt!).getTime() -
+          new Date(a.submittedAt!).getTime(),
+      );
 
     const totalLessons = Object.keys(lessonMeta).length;
-    const completionPercentage = totalLessons > 0 ? Math.round((completedLessons.length / totalLessons) * 100) : 0;
+    const completionPercentage =
+      totalLessons > 0
+        ? Math.round((completedLessons.length / totalLessons) * 100)
+        : 0;
 
     return {
       completionPercentage,
@@ -791,16 +937,16 @@ export class ProgressService {
   }
 
   /**
-   * Get the Top Learners leaderboard for a specific class and/or school.
-   * Only students who have completed ALL lessons AND ALL quizzes qualify.
-   * Results are ranked by accumulated points descending.
+   * Get the global leaderboard for a specific class and/or school.
+   * All active students are ranked by accumulated points descending.
    */
   async getLeaderboard(classId?: string, schoolId?: string) {
     // Find students matching class/school filters
     const userFilter: any = { role: UserRole.Student, isActive: true };
     if (classId) userFilter.classIds = classId;
     if (schoolId) {
-      if (!Types.ObjectId.isValid(schoolId)) throw new BadRequestException('Invalid schoolId');
+      if (!Types.ObjectId.isValid(schoolId))
+        throw new BadRequestException('Invalid schoolId');
       userFilter.schoolId = new Types.ObjectId(schoolId);
     }
 
@@ -870,11 +1016,292 @@ export class ProgressService {
         const completedLessons = lessonsByUser.get(uid) ?? new Set<string>();
         const completedQuizzes = quizzesByUser.get(uid) ?? new Set<string>();
 
-        const completedLessonCount = [...completedLessons].filter((id) => allLessonSet.has(id)).length;
-        const completedQuizCount = [...completedQuizzes].filter((id) => allQuizSet.has(id)).length;
+        const completedLessonCount = [...completedLessons].filter((id) =>
+          allLessonSet.has(id),
+        ).length;
+        const completedQuizCount = [...completedQuizzes].filter((id) =>
+          allQuizSet.has(id),
+        ).length;
 
         const allLessonsComplete = completedLessonCount >= totalLessons;
-        const allQuizzesComplete = totalQuizzes === 0 || completedQuizCount >= totalQuizzes;
+        const allQuizzesComplete =
+          totalQuizzes === 0 || completedQuizCount >= totalQuizzes;
+
+        return {
+          _id: uid,
+          userId: uid,
+          fullName: (s as any).fullName,
+          profileImage: (s as any).profileImage ?? null,
+          points: (s as any).points ?? 0,
+          lessonCount: completedLessonCount,
+          quizCount: completedQuizCount,
+          isTopLearner: allLessonsComplete && allQuizzesComplete,
+        };
+      })
+      .sort(
+        (a, b) => b.points - a.points || a.fullName.localeCompare(b.fullName),
+      );
+
+    return qualified.map((s, idx) => ({ ...s, rank: idx + 1 }));
+  }
+
+  /**
+   * Teacher-specific: get detailed results for all students in a class.
+   * Includes quiz scores, assignment/activity submission stats, lesson completion.
+   */
+  async getTeacherClassResults(classId: string, schoolId?: string, teacherId?: string) {
+    // classId here is the class name like "Class 3"
+    const userFilter: any = {
+      role: UserRole.Student,
+      isActive: true,
+      classIds: classId,
+    };
+    if (schoolId && Types.ObjectId.isValid(schoolId)) {
+      userFilter.schoolId = new Types.ObjectId(schoolId);
+    }
+    if (teacherId && Types.ObjectId.isValid(teacherId)) {
+      userFilter.teacherId = new Types.ObjectId(teacherId);
+    }
+
+    const students = await this.userModel
+      .find(userFilter)
+      .select('fullName email profileImage points classIds schoolId')
+      .lean();
+
+    if (students.length === 0)
+      return {
+        students: [],
+        summary: { totalStudents: 0, avgCompletion: 0, avgPoints: 0 },
+      };
+
+    // Build curriculum info
+    const chapters = await this.chapterModel.find().lean();
+    const allLessonIds: string[] = [];
+    const allQuizIds: string[] = [];
+
+    for (const chapter of chapters) {
+      for (const lesson of (chapter as any).lessons ?? []) {
+        allLessonIds.push(String(lesson._id));
+        for (const item of (lesson.items ?? []) as ChapterLessonItem[]) {
+          if (item.type === 'quiz') allQuizIds.push(String(item.refId));
+        }
+      }
+    }
+
+    const totalLessons = allLessonIds.length;
+    const totalQuizzes = allQuizIds.length;
+    const studentIds = students.map((s) => new Types.ObjectId(String(s._id)));
+
+    const [lessonRows, quizRows, submissionRows] = await Promise.all([
+      this.progressModel
+        .find({ userId: { $in: studentIds }, completedAt: { $ne: null } })
+        .select('userId lessonId')
+        .lean(),
+      this.quizProgressModel
+        .find({ userId: { $in: studentIds } })
+        .select('userId quizId score completedAt')
+        .lean(),
+      this.submissionProgressModel
+        .find({ userId: { $in: studentIds } })
+        .select('userId taskType taskId reviewStatus submittedAt')
+        .lean(),
+    ]);
+
+    // Group by user
+    const lessonsByUser = new Map<string, Set<string>>();
+    for (const row of lessonRows) {
+      const uid = String(row.userId);
+      if (!lessonsByUser.has(uid)) lessonsByUser.set(uid, new Set());
+      lessonsByUser.get(uid)!.add(String(row.lessonId));
+    }
+
+    const quizzesByUser = new Map<
+      string,
+      { score: number; completed: boolean }[]
+    >();
+    for (const row of quizRows) {
+      const uid = String(row.userId);
+      if (!quizzesByUser.has(uid)) quizzesByUser.set(uid, []);
+      quizzesByUser
+        .get(uid)!
+        .push({
+          score: (row as any).score ?? 0,
+          completed: !!(row as any).completedAt,
+        });
+    }
+
+    const submissionsByUser = new Map<
+      string,
+      { pending: number; approved: number; rejected: number; total: number }
+    >();
+    for (const row of submissionRows) {
+      const uid = String(row.userId);
+      if (!submissionsByUser.has(uid))
+        submissionsByUser.set(uid, {
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+          total: 0,
+        });
+      const stats = submissionsByUser.get(uid)!;
+      stats.total++;
+      const status = (row as any).reviewStatus ?? 'pending';
+      if (status === 'approved') stats.approved++;
+      else if (status === 'rejected') stats.rejected++;
+      else stats.pending++;
+    }
+
+    const allLessonSet = new Set(allLessonIds);
+
+    const studentResults = students
+      .map((s) => {
+        const uid = String(s._id);
+        const completedLessons = lessonsByUser.get(uid) ?? new Set<string>();
+        const validCompletedLessons = [...completedLessons].filter((id) =>
+          allLessonSet.has(id),
+        ).length;
+        const quizData = quizzesByUser.get(uid) ?? [];
+        const completedQuizzes = quizData.filter((q) => q.completed).length;
+        const avgQuizScore =
+          quizData.length > 0
+            ? Math.round(
+                quizData.reduce((acc, q) => acc + q.score, 0) / quizData.length,
+              )
+            : 0;
+        const lessonCompletion =
+          totalLessons > 0
+            ? Math.round((validCompletedLessons / totalLessons) * 100)
+            : 0;
+        const submissions = submissionsByUser.get(uid) ?? {
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+          total: 0,
+        };
+
+        return {
+          userId: uid,
+          fullName: (s as any).fullName,
+          email: (s as any).email,
+          profileImage: (s as any).profileImage ?? null,
+          points: (s as any).points ?? 0,
+          completedLessons: validCompletedLessons,
+          totalLessons,
+          lessonCompletion,
+          completedQuizzes,
+          totalQuizzes,
+          avgQuizScore,
+          submissions,
+        };
+      })
+      .sort(
+        (a, b) => b.points - a.points || a.fullName.localeCompare(b.fullName),
+      );
+
+    const avgCompletion =
+      studentResults.length > 0
+        ? Math.round(
+            studentResults.reduce((acc, s) => acc + s.lessonCompletion, 0) /
+              studentResults.length,
+          )
+        : 0;
+    const avgPoints =
+      studentResults.length > 0
+        ? Math.round(
+            studentResults.reduce((acc, s) => acc + s.points, 0) /
+              studentResults.length,
+          )
+        : 0;
+
+    return {
+      students: studentResults,
+      summary: {
+        totalStudents: studentResults.length,
+        avgCompletion,
+        avgPoints,
+        totalLessons,
+        totalQuizzes,
+      },
+    };
+  }
+
+  /**
+   * Teacher leaderboard — ALL students ranked by points (not filtered to fully-completed only).
+   */
+  async getTeacherLeaderboard(classId?: string, schoolId?: string, teacherId?: string) {
+    const userFilter: any = { role: UserRole.Student, isActive: true };
+    if (classId) userFilter.classIds = classId;
+    if (schoolId && Types.ObjectId.isValid(schoolId)) {
+      userFilter.schoolId = new Types.ObjectId(schoolId);
+    }
+    if (teacherId && Types.ObjectId.isValid(teacherId)) {
+      userFilter.teacherId = new Types.ObjectId(teacherId);
+    }
+
+    const students = await this.userModel
+      .find(userFilter)
+      .select('fullName profileImage points classIds schoolId')
+      .lean();
+
+    if (students.length === 0) return [];
+
+    // Build curriculum info
+    const chapters = await this.chapterModel.find().lean();
+    const allLessonIds: string[] = [];
+    const allQuizIds: string[] = [];
+
+    for (const chapter of chapters) {
+      for (const lesson of (chapter as any).lessons ?? []) {
+        allLessonIds.push(String(lesson._id));
+        for (const item of (lesson.items ?? []) as ChapterLessonItem[]) {
+          if (item.type === 'quiz') allQuizIds.push(String(item.refId));
+        }
+      }
+    }
+
+    const totalLessons = allLessonIds.length;
+    const totalQuizzes = allQuizIds.length;
+    const studentIds = students.map((s) => new Types.ObjectId(String(s._id)));
+
+    const [lessonRows, quizRows] = await Promise.all([
+      this.progressModel
+        .find({ userId: { $in: studentIds }, completedAt: { $ne: null } })
+        .select('userId lessonId')
+        .lean(),
+      this.quizProgressModel
+        .find({ userId: { $in: studentIds }, completedAt: { $ne: null } })
+        .select('userId quizId')
+        .lean(),
+    ]);
+
+    const lessonsByUser = new Map<string, Set<string>>();
+    for (const row of lessonRows) {
+      const uid = String(row.userId);
+      if (!lessonsByUser.has(uid)) lessonsByUser.set(uid, new Set());
+      lessonsByUser.get(uid)!.add(String(row.lessonId));
+    }
+
+    const quizzesByUser = new Map<string, Set<string>>();
+    for (const row of quizRows) {
+      const uid = String(row.userId);
+      if (!quizzesByUser.has(uid)) quizzesByUser.set(uid, new Set());
+      quizzesByUser.get(uid)!.add(String(row.quizId));
+    }
+
+    const allLessonSet = new Set(allLessonIds);
+    const allQuizSet = new Set(allQuizIds);
+
+    const ranked = students
+      .map((s) => {
+        const uid = String(s._id);
+        const completedLessons = lessonsByUser.get(uid) ?? new Set<string>();
+        const completedQuizzes = quizzesByUser.get(uid) ?? new Set<string>();
+        const completedLessonCount = [...completedLessons].filter((id) =>
+          allLessonSet.has(id),
+        ).length;
+        const completedQuizCount = [...completedQuizzes].filter((id) =>
+          allQuizSet.has(id),
+        ).length;
 
         return {
           userId: uid,
@@ -885,13 +1312,13 @@ export class ProgressService {
           totalLessons,
           completedQuizzes: completedQuizCount,
           totalQuizzes,
-          isTopLearner: allLessonsComplete && allQuizzesComplete,
         };
       })
-      .filter((s) => s.isTopLearner)
-      .sort((a, b) => b.points - a.points || a.fullName.localeCompare(b.fullName));
+      .sort(
+        (a, b) => b.points - a.points || a.fullName.localeCompare(b.fullName),
+      );
 
-    return qualified.map((s, idx) => ({ ...s, rank: idx + 1 }));
+    return ranked.map((s, idx) => ({ ...s, rank: idx + 1 }));
   }
 
   /**
@@ -913,13 +1340,18 @@ export class ProgressService {
       throw new BadRequestException('reason is required for point deduction');
     }
 
-    const student = await this.userModel.findById(studentId).select('points fullName').lean();
+    const student = await this.userModel
+      .findById(studentId)
+      .select('points fullName')
+      .lean();
     if (!student) throw new NotFoundException('Student not found');
 
     const currentPoints = (student as any).points ?? 0;
     const newPoints = Math.max(0, currentPoints - points);
 
-    await this.userModel.findByIdAndUpdate(studentId, { $set: { points: newPoints } });
+    await this.userModel.findByIdAndUpdate(studentId, {
+      $set: { points: newPoints },
+    });
 
     return {
       ok: true,
@@ -931,6 +1363,539 @@ export class ProgressService {
       reason: reason.trim(),
       deductedBy: teacherId,
       deductedAt: new Date(),
+    };
+  }
+
+  /** Teacher: get submissions from students in their classes */
+  async getTeacherSubmissions(teacherId: string, statusFilter?: string) {
+    // Get teacher's classes and school
+    const teacher = await this.userModel.findById(teacherId).lean();
+    if (!teacher) throw new NotFoundException('Teacher not found');
+
+    const teacherClassIds: string[] = (teacher as any).classIds ?? [];
+    const teacherSchoolId = (teacher as any).schoolId;
+
+    // Get student IDs in teacher's scope (must be directly assigned)
+    const studentFilter: any = {
+      role: UserRole.Student,
+      isActive: true,
+      teacherId: new Types.ObjectId(teacherId),
+    };
+    if (teacherClassIds.length > 0)
+      studentFilter.classIds = { $in: teacherClassIds };
+    if (teacherSchoolId) studentFilter.schoolId = teacherSchoolId;
+
+    const students = await this.userModel
+      .find(studentFilter)
+      .select('_id fullName email classIds')
+      .lean();
+    const studentIds = students.map((s: any) => s._id);
+    const studentMap = new Map(students.map((s: any) => [String(s._id), s]));
+
+    if (studentIds.length === 0) return [];
+
+    // Get submissions
+    const subFilter: any = { userId: { $in: studentIds } };
+    if (
+      statusFilter &&
+      ['pending', 'approved', 'rejected', 'resubmit_requested'].includes(
+        statusFilter,
+      )
+    ) {
+      subFilter.reviewStatus = statusFilter;
+    }
+
+    const submissions = await this.submissionProgressModel
+      .find(subFilter)
+      .sort({ submittedAt: -1 })
+      .lean();
+
+    // Enrich with task titles
+    const assignmentIds = submissions
+      .filter((s) => s.taskType === 'assignment')
+      .map((s) => s.taskId);
+    const activityIds = submissions
+      .filter((s) => s.taskType === 'activity')
+      .map((s) => s.taskId);
+
+    const [assignmentsArr, activitiesArr] = await Promise.all([
+      assignmentIds.length > 0
+        ? this.assignmentModel
+            .find({ _id: { $in: assignmentIds } })
+            .select('title points')
+            .lean()
+        : [],
+      activityIds.length > 0
+        ? this.activityModel
+            .find({ _id: { $in: activityIds } })
+            .select('title points')
+            .lean()
+        : [],
+    ]);
+
+    const taskMap = new Map<string, { title: string; points?: number }>();
+    for (const a of assignmentsArr)
+      taskMap.set(String(a._id), { title: a.title, points: (a as any).points });
+    for (const a of activitiesArr)
+      taskMap.set(String(a._id), { title: a.title, points: (a as any).points });
+
+    return submissions.map((sub: any) => {
+      const student = studentMap.get(String(sub.userId));
+      const task = taskMap.get(String(sub.taskId));
+      return {
+        _id: String(sub._id),
+        userId: String(sub.userId),
+        studentName: (student as any)?.fullName ?? 'Unknown',
+        studentEmail: (student as any)?.email ?? '',
+        studentClass: ((student as any)?.classIds ?? [])[0] ?? '',
+        taskType: sub.taskType,
+        taskId: String(sub.taskId),
+        taskTitle: task?.title ?? 'Unknown Task',
+        taskPoints: task?.points ?? 0,
+        filePath: sub.filePath,
+        originalName: sub.originalName,
+        submittedAt: sub.submittedAt,
+        reviewStatus: normalizeReviewStatus(sub.reviewStatus),
+        reviewFeedback: sub.reviewFeedback ?? '',
+        pointsAwarded: sub.pointsAwarded ?? 0,
+        reviewedAt: sub.reviewedAt ?? null,
+      };
+    });
+  }
+
+  /** Admin: get all submissions across the platform */
+  async getAdminSubmissions(statusFilter?: string) {
+    const filter: any = {};
+    if (statusFilter) {
+      if (statusFilter === 'pending') {
+        filter.$or = [
+          { reviewStatus: 'pending' },
+          { reviewStatus: { $exists: false } },
+        ];
+      } else {
+        filter.reviewStatus = statusFilter;
+      }
+    }
+
+    const rawSubmissions = await this.submissionProgressModel
+      .find(filter)
+      .sort({ submittedAt: -1 })
+      .lean();
+    if (rawSubmissions.length === 0) return [];
+
+    const studentIds = [
+      ...new Set(rawSubmissions.map((s: any) => String(s.userId))),
+    ].map((id) => new Types.ObjectId(id));
+    const taskIds = [
+      ...new Set(rawSubmissions.map((s: any) => String(s.taskId))),
+    ].map((id) => new Types.ObjectId(id));
+
+    const students = await this.userModel
+      .find({ _id: { $in: studentIds } } as any)
+      .select('_id fullName email classIds')
+      .lean();
+    const studentMap = new Map(students.map((s: any) => [String(s._id), s]));
+
+    const [assignments, activities] = await Promise.all([
+      this.assignmentModel
+        .find({ _id: { $in: taskIds } } as any)
+        .select('_id title points')
+        .lean(),
+      this.activityModel
+        .find({ _id: { $in: taskIds } } as any)
+        .select('_id title points')
+        .lean(),
+    ]);
+
+    const taskMap = new Map();
+    assignments.forEach((a: any) => taskMap.set(String(a._id), a));
+    activities.forEach((a: any) => taskMap.set(String(a._id), a));
+
+    return rawSubmissions.map((sub: any) => {
+      const student = studentMap.get(String(sub.userId));
+      const task = taskMap.get(String(sub.taskId));
+      return {
+        _id: String(sub._id),
+        userId: String(sub.userId),
+        studentName: (student as any)?.fullName ?? 'Unknown',
+        studentEmail: (student as any)?.email ?? '',
+        studentClass: ((student as any)?.classIds ?? [])[0] ?? '',
+        taskType: sub.taskType,
+        taskId: String(sub.taskId),
+        taskTitle: task?.title ?? 'Unknown Task',
+        taskPoints: task?.points ?? 0,
+        filePath: sub.filePath,
+        originalName: sub.originalName,
+        submittedAt: sub.submittedAt,
+        reviewStatus: normalizeReviewStatus(sub.reviewStatus),
+        reviewFeedback: sub.reviewFeedback ?? '',
+        pointsAwarded: sub.pointsAwarded ?? 0,
+        reviewedAt: sub.reviewedAt ?? null,
+      };
+    });
+  }
+
+  // ── Teacher-scoped Deadline Management ──────────────────────────────────
+
+  async setTeacherDeadline(
+    teacherId: string,
+    taskType: 'assignment' | 'activity' | 'quiz',
+    taskId: string,
+    classId: string,
+    dueDate: string | null,
+  ) {
+    this.ensureObjectId(teacherId, 'Invalid teacher id');
+    this.ensureObjectId(taskId, 'Invalid task id');
+
+    if (!dueDate) {
+      // Remove deadline
+      await this.teacherDeadlineModel.deleteOne({
+        teacherId: new Types.ObjectId(teacherId),
+        taskType,
+        taskId: new Types.ObjectId(taskId),
+        classId,
+      });
+      return { ok: true, removed: true };
+    }
+
+    const deadline = await this.teacherDeadlineModel.findOneAndUpdate(
+      {
+        teacherId: new Types.ObjectId(teacherId),
+        taskType,
+        taskId: new Types.ObjectId(taskId),
+        classId,
+      },
+      {
+        $set: { dueDate: new Date(dueDate) },
+      },
+      { upsert: true, new: true },
+    );
+
+    return {
+      ok: true,
+      deadline: {
+        _id: String(deadline._id),
+        teacherId,
+        taskType,
+        taskId,
+        classId,
+        dueDate: deadline.dueDate,
+      },
+    };
+  }
+
+  async getTeacherDeadlines(teacherId: string, classId?: string) {
+    this.ensureObjectId(teacherId, 'Invalid teacher id');
+    const filter: any = { teacherId: new Types.ObjectId(teacherId) };
+    if (classId) filter.classId = classId;
+
+    const deadlines = await this.teacherDeadlineModel.find(filter).lean();
+
+    // Enrich with task titles
+    const assignmentIds = deadlines.filter(d => d.taskType === 'assignment').map(d => d.taskId);
+    const activityIds = deadlines.filter(d => d.taskType === 'activity').map(d => d.taskId);
+    const quizIds = deadlines.filter(d => d.taskType === 'quiz').map(d => d.taskId);
+
+    const [assignments, activities, quizzes] = await Promise.all([
+      assignmentIds.length > 0 ? this.assignmentModel.find({ _id: { $in: assignmentIds } }).select('title').lean() : [],
+      activityIds.length > 0 ? this.activityModel.find({ _id: { $in: activityIds } }).select('title').lean() : [],
+      quizIds.length > 0 ? this.quizModel.find({ _id: { $in: quizIds } }).select('title').lean() : [],
+    ]);
+
+    const titleMap = new Map<string, string>();
+    for (const a of assignments) titleMap.set(String(a._id), (a as any).title);
+    for (const a of activities) titleMap.set(String(a._id), (a as any).title);
+    for (const q of quizzes) titleMap.set(String(q._id), (q as any).title);
+
+    return deadlines.map((d: any) => ({
+      _id: String(d._id),
+      teacherId: String(d.teacherId),
+      taskType: d.taskType,
+      taskId: String(d.taskId),
+      taskTitle: titleMap.get(String(d.taskId)) ?? 'Unknown',
+      classId: d.classId,
+      dueDate: d.dueDate,
+    }));
+  }
+
+  // ── Curriculum Tree (for teacher view) ──────────────────────────────────
+
+  async getCurriculumTree() {
+    const chapters = await this.chapterModel.find().sort({ order: 1, createdAt: 1 }).lean();
+
+    const allLessonIds: string[] = [];
+    const allQuizIds: string[] = [];
+    const allAssignmentIds: string[] = [];
+    const allActivityIds: string[] = [];
+
+    for (const chapter of chapters) {
+      for (const lesson of (chapter as any).lessons ?? []) {
+        for (const item of lesson.items ?? []) {
+          if (item.type === 'video' || item.type === 'documentation') allLessonIds.push(String(item.refId));
+          if (item.type === 'quiz') allQuizIds.push(String(item.refId));
+          if (item.type === 'assignment') allAssignmentIds.push(String(item.refId));
+          if (item.type === 'activity') allActivityIds.push(String(item.refId));
+        }
+      }
+    }
+
+    const [lessonsDocs, assignments, activities, quizzes] = await Promise.all([
+      allLessonIds.length > 0 ? this.lessonModel.find({ _id: { $in: allLessonIds } }).select('title').lean() : [],
+      allAssignmentIds.length > 0 ? this.assignmentModel.find({ _id: { $in: allAssignmentIds } }).select('title requiresSubmission').lean() : [],
+      allActivityIds.length > 0 ? this.activityModel.find({ _id: { $in: allActivityIds } }).select('title requiresSubmission').lean() : [],
+      allQuizIds.length > 0 ? this.quizModel.find({ _id: { $in: allQuizIds } }).select('title').lean() : [],
+    ]);
+
+    const titleMap = new Map<string, string>();
+    const submissionMap = new Map<string, boolean>();
+
+    for (const l of lessonsDocs) titleMap.set(String(l._id), (l as any).title);
+    for (const a of assignments) {
+      titleMap.set(String(a._id), (a as any).title);
+      submissionMap.set(String(a._id), (a as any).requiresSubmission);
+    }
+    for (const a of activities) {
+      titleMap.set(String(a._id), (a as any).title);
+      submissionMap.set(String(a._id), (a as any).requiresSubmission);
+    }
+    for (const q of quizzes) titleMap.set(String(q._id), (q as any).title);
+
+    return chapters.map((chapter: any) => {
+      const lessons = [...(chapter.lessons ?? [])]
+        .sort((a: any, b: any) => a.order - b.order)
+        .map((lesson: any) => {
+          const items = [...(lesson.items ?? [])]
+            .sort((a: any, b: any) => a.order - b.order)
+            .map((item: any) => {
+              const refId = String(item.refId);
+              return {
+                type: item.type,
+                refId,
+                order: item.order,
+                title: titleMap.get(refId) ?? undefined,
+                submissionRequired: submissionMap.get(refId) ?? false,
+              };
+            });
+
+          return {
+            _id: String(lesson._id),
+            title: lesson.title,
+            order: lesson.order,
+            itemCount: items.length,
+            items,
+          };
+        });
+
+      return {
+        _id: String(chapter._id),
+        title: chapter.title,
+        order: chapter.order ?? 0,
+        coverImageFilePath: chapter.coverImageFilePath ?? null,
+        lessonCount: lessons.length,
+        lessons,
+      };
+    });
+  }
+
+  // ── Teacher: detailed student progress with all submission statuses ────
+
+  async getTeacherStudentDetail(teacherId: string, studentId: string) {
+    this.ensureObjectId(teacherId, 'Invalid teacher id');
+    this.ensureObjectId(studentId, 'Invalid student id');
+
+    // Verify teacher owns this student
+    const teacher = await this.userModel.findById(teacherId).lean();
+    if (!teacher) throw new NotFoundException('Teacher not found');
+    const teacherClassIds: string[] = (teacher as any).classIds ?? [];
+
+    const student = await this.userModel.findById(studentId)
+      .select('-passwordHash')
+      .populate('schoolId', 'name code')
+      .populate('teacherId', 'fullName email')
+      .lean();
+    if (!student) throw new NotFoundException('Student not found');
+
+    const studentClassIds: string[] = (student as any).classIds ?? [];
+    const hasOverlap = studentClassIds.some(c => teacherClassIds.includes(c));
+    if (!hasOverlap || String((student as any).teacherId?._id || (student as any).teacherId) !== teacherId) {
+      throw new BadRequestException('This student is not assigned to you.');
+    }
+
+    // Get curriculum
+    const chapters = await this.chapterModel.find().lean();
+    const allLessonIds: string[] = [];
+    const allQuizIds: string[] = [];
+    const allAssignmentIds: string[] = [];
+    const allActivityIds: string[] = [];
+
+    for (const chapter of chapters) {
+      for (const lesson of (chapter as any).lessons ?? []) {
+        allLessonIds.push(String(lesson._id));
+        for (const item of lesson.items ?? []) {
+          if (item.type === 'quiz') allQuizIds.push(String(item.refId));
+          if (item.type === 'assignment') allAssignmentIds.push(String(item.refId));
+          if (item.type === 'activity') allActivityIds.push(String(item.refId));
+        }
+      }
+    }
+
+    const studentOid = new Types.ObjectId(studentId);
+
+    const [lessonRows, quizRows, submissionRows] = await Promise.all([
+      this.progressModel
+        .find({ userId: studentOid, completedAt: { $ne: null } })
+        .select('lessonId chapterId completedAt')
+        .lean(),
+      this.quizProgressModel
+        .find({ userId: studentOid })
+        .select('quizId score completedAt')
+        .lean(),
+      this.submissionProgressModel
+        .find({ userId: studentOid })
+        .select('taskType taskId originalName submittedAt reviewStatus reviewFeedback reviewedAt pointsAwarded')
+        .lean(),
+    ]);
+
+    const completedLessonSet = new Set(lessonRows.map(r => String(r.lessonId)));
+    const quizMap = new Map(quizRows.map(r => [String(r.quizId), { score: (r as any).score ?? 0, completedAt: r.completedAt }]));
+    const submissionMap = new Map(submissionRows.map((r: any) => [
+      `${r.taskType}:${String(r.taskId)}`,
+      {
+        submittedAt: r.submittedAt,
+        originalName: r.originalName,
+        reviewStatus: r.reviewStatus ?? 'pending',
+        reviewFeedback: r.reviewFeedback ?? '',
+        reviewedAt: r.reviewedAt ?? null,
+        pointsAwarded: r.pointsAwarded ?? 0,
+      },
+    ]));
+
+    // Enrich task titles
+    const taskIds = [...new Set([...allAssignmentIds, ...allActivityIds])];
+    const quizIdSet = [...new Set(allQuizIds)];
+    const [assignmentDocs, activityDocs, quizDocs] = await Promise.all([
+      allAssignmentIds.length > 0 ? this.assignmentModel.find({ _id: { $in: allAssignmentIds.map(id => new Types.ObjectId(id)) } }).select('title points dueDate requiresSubmission').lean() : [],
+      allActivityIds.length > 0 ? this.activityModel.find({ _id: { $in: allActivityIds.map(id => new Types.ObjectId(id)) } }).select('title points dueDate requiresSubmission').lean() : [],
+      allQuizIds.length > 0 ? this.quizModel.find({ _id: { $in: allQuizIds.map(id => new Types.ObjectId(id)) } }).select('title questions').lean() : [],
+    ]);
+
+    const assignmentMap = new Map<string, any>(assignmentDocs.map((d: any) => [String(d._id), d] as [string, any]));
+    const activityMap = new Map<string, any>(activityDocs.map((d: any) => [String(d._id), d] as [string, any]));
+    const quizDocMap = new Map<string, any>(quizDocs.map((d: any) => [String(d._id), d] as [string, any]));
+
+    // Build per-chapter, per-lesson detail
+    const chapterDetails = chapters.map((chapter: any) => {
+      const lessons = [...(chapter.lessons ?? [])]
+        .sort((a: any, b: any) => a.order - b.order)
+        .map((lesson: any) => {
+          const lessonId = String(lesson._id);
+          const completed = completedLessonSet.has(lessonId);
+
+          const items = [...(lesson.items ?? [])]
+            .sort((a: any, b: any) => a.order - b.order)
+            .map((item: any) => {
+              const refId = String(item.refId);
+              let status: any = { type: item.type, refId, title: 'Unknown' };
+
+              if (item.type === 'quiz') {
+                const doc = quizDocMap.get(refId);
+                const progress = quizMap.get(refId);
+                status = {
+                  ...status,
+                  title: doc?.title ?? 'Unknown Quiz',
+                  totalQuestions: (doc?.questions ?? []).length,
+                  completed: !!progress?.completedAt,
+                  score: progress?.score ?? null,
+                };
+              } else if (item.type === 'assignment') {
+                const doc = assignmentMap.get(refId);
+                const sub = submissionMap.get(`assignment:${refId}`);
+                status = {
+                  ...status,
+                  title: doc?.title ?? 'Unknown Assignment',
+                  points: doc?.points ?? 0,
+                  requiresSubmission: doc?.requiresSubmission ?? false,
+                  submitted: !!sub,
+                  submittedAt: sub?.submittedAt ?? null,
+                  reviewStatus: sub?.reviewStatus ?? 'not_submitted',
+                  reviewFeedback: sub?.reviewFeedback ?? '',
+                  pointsAwarded: sub?.pointsAwarded ?? 0,
+                };
+              } else if (item.type === 'activity') {
+                const doc = activityMap.get(refId);
+                const sub = submissionMap.get(`activity:${refId}`);
+                status = {
+                  ...status,
+                  title: doc?.title ?? 'Unknown Activity',
+                  points: doc?.points ?? 0,
+                  requiresSubmission: doc?.requiresSubmission ?? false,
+                  submitted: !!sub,
+                  submittedAt: sub?.submittedAt ?? null,
+                  reviewStatus: sub?.reviewStatus ?? 'not_submitted',
+                  reviewFeedback: sub?.reviewFeedback ?? '',
+                  pointsAwarded: sub?.pointsAwarded ?? 0,
+                };
+              }
+
+              return status;
+            });
+
+          return {
+            _id: lessonId,
+            title: lesson.title,
+            order: lesson.order,
+            completed,
+            items,
+          };
+        });
+
+      return {
+        _id: String(chapter._id),
+        title: chapter.title,
+        order: chapter.order ?? 0,
+        lessons,
+      };
+    });
+
+    const totalLessons = allLessonIds.length;
+    const completedLessons = [...completedLessonSet].filter(id => allLessonIds.includes(id)).length;
+    const totalQuizzes = allQuizIds.length;
+    const completedQuizzes = [...quizMap.entries()].filter(([id, v]) => allQuizIds.includes(id) && v.completedAt).length;
+    const totalTasks = allAssignmentIds.length + allActivityIds.length;
+    const submittedTasks = submissionRows.length;
+    const approvedTasks = submissionRows.filter((r: any) => r.reviewStatus === 'approved').length;
+    const pendingTasks = submissionRows.filter((r: any) => r.reviewStatus === 'pending' || !r.reviewStatus).length;
+    const rejectedTasks = submissionRows.filter((r: any) => r.reviewStatus === 'rejected').length;
+
+    const completionPct = totalLessons > 0
+      ? Math.round((completedLessons / totalLessons) * 100)
+      : 0;
+
+    return {
+      student: {
+        _id: String(student._id),
+        fullName: (student as any).fullName,
+        email: (student as any).email,
+        phone: (student as any).phone ?? null,
+        profileImage: (student as any).profileImage ?? null,
+        classIds: (student as any).classIds ?? [],
+        school: (student as any).schoolId ?? null,
+        teacher: (student as any).teacherId ?? null,
+        points: (student as any).points ?? 0,
+      },
+      summary: {
+        completionPct,
+        completedLessons,
+        totalLessons,
+        completedQuizzes,
+        totalQuizzes,
+        submittedTasks,
+        totalTasks,
+        approvedTasks,
+        pendingTasks,
+        rejectedTasks,
+      },
+      chapters: chapterDetails,
     };
   }
 }

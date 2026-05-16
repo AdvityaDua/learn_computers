@@ -20,6 +20,10 @@ export class LessonProgress {
 }
 
 export type LessonProgressDocument = HydratedDocument<LessonProgress>;
-export const LessonProgressSchema = SchemaFactory.createForClass(LessonProgress);
+export const LessonProgressSchema =
+  SchemaFactory.createForClass(LessonProgress);
 
-LessonProgressSchema.index({ userId: 1, chapterId: 1, lessonId: 1 }, { unique: true });
+LessonProgressSchema.index(
+  { userId: 1, chapterId: 1, lessonId: 1 },
+  { unique: true },
+);

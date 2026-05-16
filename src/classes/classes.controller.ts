@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -19,8 +29,16 @@ export class ClassesController {
 
   @Get()
   @Roles(UserRole.Admin, UserRole.Instructor)
-  findAll(@Query('page') page?: string, @Query('limit') limit?: string, @Query('search') search?: string) {
-    return this.classesService.findAll(page ? +page : 1, limit ? +limit : 20, search);
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.classesService.findAll(
+      page ? +page : 1,
+      limit ? +limit : 20,
+      search,
+    );
   }
 
   @Get(':id')
@@ -31,7 +49,10 @@ export class ClassesController {
 
   @Patch(':id')
   @Roles(UserRole.Admin)
-  update(@Param('id') id: string, @Body() updateClassDto: Partial<CreateClassDto>) {
+  update(
+    @Param('id') id: string,
+    @Body() updateClassDto: Partial<CreateClassDto>,
+  ) {
     return this.classesService.update(id, updateClassDto);
   }
 
@@ -43,13 +64,19 @@ export class ClassesController {
 
   @Post(':id/teachers/:teacherId')
   @Roles(UserRole.Admin)
-  assignTeacher(@Param('id') id: string, @Param('teacherId') teacherId: string) {
+  assignTeacher(
+    @Param('id') id: string,
+    @Param('teacherId') teacherId: string,
+  ) {
     return this.classesService.assignTeacher(id, teacherId);
   }
 
   @Delete(':id/teachers/:teacherId')
   @Roles(UserRole.Admin)
-  removeTeacher(@Param('id') id: string, @Param('teacherId') teacherId: string) {
+  removeTeacher(
+    @Param('id') id: string,
+    @Param('teacherId') teacherId: string,
+  ) {
     return this.classesService.removeTeacher(id, teacherId);
   }
 }

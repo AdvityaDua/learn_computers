@@ -6,10 +6,10 @@ export type ClassDocument = HydratedDocument<Class>;
 @Schema({ timestamps: true })
 export class Class {
   @Prop({ required: true, trim: true })
-  name: string;  // e.g. "Class 3"
+  name: string; // e.g. "Class 3"
 
   @Prop({ required: true })
-  grade: number;  // numeric grade e.g. 3
+  grade: number; // numeric grade e.g. 3
 
   @Prop({ trim: true, default: '' })
   description: string;

@@ -31,6 +31,9 @@ export class Quiz {
 
   @Prop({ type: [String], default: ['Class 3'] })
   classIds: string[];
+
+  @Prop()
+  dueDate?: Date;
 }
 
 export type QuizDocument = HydratedDocument<Quiz>;

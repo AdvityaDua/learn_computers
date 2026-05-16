@@ -20,7 +20,8 @@ export class ChapterLessonItem {
   order: number;
 }
 
-export const ChapterLessonItemSchema = SchemaFactory.createForClass(ChapterLessonItem);
+export const ChapterLessonItemSchema =
+  SchemaFactory.createForClass(ChapterLessonItem);
 
 @Schema({ _id: true })
 export class ChapterLesson {

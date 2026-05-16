@@ -13,14 +13,20 @@ import { Quiz, QuizDocument } from './schemas/quiz.schema';
 
 @Injectable()
 export class QuizzesService {
-  constructor(@InjectModel(Quiz.name) private readonly quizModel: Model<QuizDocument>) {}
+  constructor(
+    @InjectModel(Quiz.name) private readonly quizModel: Model<QuizDocument>,
+  ) {}
 
   async create(dto: CreateQuizDto, userId: string) {
     const description = dto.description ?? '';
-    const descriptionFilePath = await this.writeMarkdownFile(description, 'quiz-description');
+    const descriptionFilePath = await this.writeMarkdownFile(
+      description,
+      'quiz-description',
+    );
     return this.quizModel.create({
       ...dto,
-      classIds: dto.classIds && dto.classIds.length > 0 ? dto.classIds : ['Class 3'],
+      classIds:
+        dto.classIds && dto.classIds.length > 0 ? dto.classIds : ['Class 3'],
       description,
       descriptionFilePath,
       createdBy: new Types.ObjectId(userId),
@@ -34,7 +40,10 @@ export class QuizzesService {
     }
 
     if (!page || !limit) {
-      const quizzes = await this.quizModel.find(query).sort({ createdAt: -1 }).lean();
+      const quizzes = await this.quizModel
+        .find(query)
+        .sort({ createdAt: -1 })
+        .lean();
       return Promise.all(quizzes.map((quiz) => this.decorateForResponse(quiz)));
     }
 
@@ -51,7 +60,9 @@ export class QuizzesService {
       this.quizModel.countDocuments(query),
     ]);
 
-    const items = await Promise.all(rows.map((quiz) => this.decorateForResponse(quiz)));
+    const items = await Promise.all(
+      rows.map((quiz) => this.decorateForResponse(quiz)),
+    );
     return {
       items,
       total,
@@ -77,12 +88,17 @@ export class QuizzesService {
       patch.classIds = ['Class 3'];
     }
     if (dto.description !== undefined) {
-      patch.descriptionFilePath = await this.writeMarkdownFile(dto.description, 'quiz-description');
+      patch.descriptionFilePath = await this.writeMarkdownFile(
+        dto.description,
+        'quiz-description',
+      );
     }
-    const quiz = await this.quizModel.findByIdAndUpdate(id, patch, {
-      new: true,
-      runValidators: true,
-    }).lean();
+    const quiz = await this.quizModel
+      .findByIdAndUpdate(id, patch, {
+        new: true,
+        runValidators: true,
+      })
+      .lean();
     if (!quiz) {
       throw new NotFoundException('Quiz not found');
     }
@@ -99,6 +115,21 @@ export class QuizzesService {
     return { message: 'Quiz deleted successfully' };
   }
 
+  async updateDueDate(id: string, dueDate: string) {
+    this.ensureObjectId(id);
+    const update: any = {};
+    if (dueDate) {
+      update.dueDate = new Date(dueDate);
+    } else {
+      update.$unset = { dueDate: 1 };
+    }
+    const quiz = await this.quizModel
+      .findByIdAndUpdate(id, update, { new: true })
+      .lean();
+    if (!quiz) throw new NotFoundException('Quiz not found');
+    return this.decorateForResponse(quiz);
+  }
+
   private async decorateForResponse(quiz: any) {
     const description = await this.resolveMarkdownText(
       quiz.descriptionFilePath,
@@ -107,7 +138,10 @@ export class QuizzesService {
     return { ...quiz, description };
   }
 
-  private async writeMarkdownFile(content: string, prefix: string): Promise<string> {
+  private async writeMarkdownFile(
+    content: string,
+    prefix: string,
+  ): Promise<string> {
     const dir = join(process.cwd(), 'uploads', 'quizzes');
     await mkdir(dir, { recursive: true });
     const filename = `${prefix}-${Date.now()}.md`;
@@ -116,7 +150,10 @@ export class QuizzesService {
     return `/uploads/quizzes/${filename}`;
   }
 
-  private async resolveMarkdownText(path: string | undefined, fallback: string): Promise<string> {
+  private async resolveMarkdownText(
+    path: string | undefined,
+    fallback: string,
+  ): Promise<string> {
     if (!path) return fallback;
     try {
       const absolutePath = join(process.cwd(), path.replace(/^\//, ''));

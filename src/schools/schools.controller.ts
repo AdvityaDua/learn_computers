@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { SchoolsService } from './schools.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -19,8 +29,16 @@ export class SchoolsController {
 
   @Get()
   @Roles(UserRole.Admin, UserRole.Instructor)
-  findAll(@Query('page') page?: string, @Query('limit') limit?: string, @Query('search') search?: string) {
-    return this.schoolsService.findAll(page ? +page : 1, limit ? +limit : 20, search);
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.schoolsService.findAll(
+      page ? +page : 1,
+      limit ? +limit : 20,
+      search,
+    );
   }
 
   @Get(':id')
@@ -31,7 +49,10 @@ export class SchoolsController {
 
   @Patch(':id')
   @Roles(UserRole.Admin)
-  update(@Param('id') id: string, @Body() updateSchoolDto: Partial<CreateSchoolDto>) {
+  update(
+    @Param('id') id: string,
+    @Body() updateSchoolDto: Partial<CreateSchoolDto>,
+  ) {
     return this.schoolsService.update(id, updateSchoolDto);
   }
 

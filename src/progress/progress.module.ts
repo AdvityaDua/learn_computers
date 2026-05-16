@@ -22,8 +22,15 @@ import {
   Assignment,
   AssignmentSchema,
 } from '../assignments/schemas/assignment.schema';
-import { Activity, ActivitySchema } from '../activities/schemas/activity.schema';
+import {
+  Activity,
+  ActivitySchema,
+} from '../activities/schemas/activity.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import {
+  TeacherDeadline,
+  TeacherDeadlineSchema,
+} from './schemas/teacher-deadline.schema';
 import { buildDiskStorage } from '../common/utils/file-upload.util';
 
 @Module({
@@ -33,6 +40,7 @@ import { buildDiskStorage } from '../common/utils/file-upload.util';
       { name: LessonProgress.name, schema: LessonProgressSchema },
       { name: QuizProgress.name, schema: QuizProgressSchema },
       { name: SubmissionProgress.name, schema: SubmissionProgressSchema },
+      { name: TeacherDeadline.name, schema: TeacherDeadlineSchema },
       { name: Chapter.name, schema: ChapterSchema },
       { name: Lesson.name, schema: LessonSchema },
       { name: Quiz.name, schema: QuizSchema },

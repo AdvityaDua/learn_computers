@@ -18,9 +18,13 @@ async function bootstrap() {
   );
 
   mkdirSync(join(process.cwd(), 'uploads', 'assignments'), { recursive: true });
-  mkdirSync(join(process.cwd(), 'uploads', 'assignments', 'images'), { recursive: true });
+  mkdirSync(join(process.cwd(), 'uploads', 'assignments', 'images'), {
+    recursive: true,
+  });
   mkdirSync(join(process.cwd(), 'uploads', 'activities'), { recursive: true });
-  mkdirSync(join(process.cwd(), 'uploads', 'activities', 'images'), { recursive: true });
+  mkdirSync(join(process.cwd(), 'uploads', 'activities', 'images'), {
+    recursive: true,
+  });
   mkdirSync(join(process.cwd(), 'uploads', 'chapters'), { recursive: true });
   mkdirSync(join(process.cwd(), 'uploads', 'quizzes'), { recursive: true });
   mkdirSync(join(process.cwd(), 'uploads', 'lessons'), { recursive: true });

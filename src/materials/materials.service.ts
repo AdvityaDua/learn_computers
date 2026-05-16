@@ -1,7 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Material, MaterialDocument, MaterialType } from './schemas/material.schema';
+import {
+  Material,
+  MaterialDocument,
+  MaterialType,
+} from './schemas/material.schema';
 import { extname } from 'path';
 
 function detectType(filename: string): MaterialType {

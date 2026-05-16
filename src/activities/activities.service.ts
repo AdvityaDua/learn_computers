@@ -54,12 +54,20 @@ export class ActivitiesService {
 
     let parsedFileTypes: string[] = [];
     if (dto.acceptedFileTypes) {
-      try { parsedFileTypes = JSON.parse(dto.acceptedFileTypes); } catch { parsedFileTypes = []; }
+      try {
+        parsedFileTypes = JSON.parse(dto.acceptedFileTypes);
+      } catch {
+        parsedFileTypes = [];
+      }
     }
 
     let parsedClassIds: string[] = ['Class 3'];
     if (dto.classIds) {
-      try { parsedClassIds = JSON.parse(dto.classIds); } catch { parsedClassIds = ['Class 3']; }
+      try {
+        parsedClassIds = JSON.parse(dto.classIds);
+      } catch {
+        parsedClassIds = ['Class 3'];
+      }
     }
 
     return this.activityModel.create({
@@ -72,7 +80,8 @@ export class ActivitiesService {
       tags: parsedTags,
       points: dto.points != null ? Number(dto.points) : undefined,
       createdBy: new Types.ObjectId(userId),
-      requiresSubmission: dto.requiresSubmission === 'true' || dto.requiresSubmission === '1',
+      requiresSubmission:
+        dto.requiresSubmission === 'true' || dto.requiresSubmission === '1',
       acceptedFileTypes: parsedFileTypes,
       classIds: parsedClassIds,
     });
@@ -83,10 +92,7 @@ export class ActivitiesService {
 
     if (search?.trim()) {
       const pattern = new RegExp(search.trim(), 'i');
-      query.$or = [
-        { title: pattern },
-        { tags: pattern },
-      ];
+      query.$or = [{ title: pattern }, { tags: pattern }];
     }
 
     if (!page || !limit) {
@@ -144,13 +150,24 @@ export class ActivitiesService {
       updateData.points = Number(dto.points);
     }
     if (dto.requiresSubmission !== undefined) {
-      updateData.requiresSubmission = dto.requiresSubmission === 'true' || dto.requiresSubmission === '1';
+      updateData.requiresSubmission =
+        dto.requiresSubmission === 'true' || dto.requiresSubmission === '1';
     }
     if (dto.acceptedFileTypes !== undefined) {
-      try { updateData.acceptedFileTypes = JSON.parse(dto.acceptedFileTypes as string); } catch { updateData.acceptedFileTypes = []; }
+      try {
+        updateData.acceptedFileTypes = JSON.parse(
+          dto.acceptedFileTypes as string,
+        );
+      } catch {
+        updateData.acceptedFileTypes = [];
+      }
     }
     if (dto.classIds !== undefined) {
-      try { updateData.classIds = JSON.parse(dto.classIds as string); } catch { updateData.classIds = ['Class 3']; }
+      try {
+        updateData.classIds = JSON.parse(dto.classIds as string);
+      } catch {
+        updateData.classIds = ['Class 3'];
+      }
     }
 
     const description = files.descriptionFile?.[0];
@@ -164,10 +181,14 @@ export class ActivitiesService {
       updateData.attachmentFilePath = this.toPublicPath(attachment.path);
     }
 
-    const activity = await this.activityModel.findByIdAndUpdate(id, updateData, {
-      new: true,
-      runValidators: true,
-    });
+    const activity = await this.activityModel.findByIdAndUpdate(
+      id,
+      updateData,
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
 
     if (!activity) {
       throw new NotFoundException('Activity not found');
@@ -184,6 +205,21 @@ export class ActivitiesService {
     }
 
     return { message: 'Activity deleted successfully' };
+  }
+
+  async updateDueDate(id: string, dueDate: string) {
+    this.ensureObjectId(id);
+    const update: any = {};
+    if (dueDate) {
+      update.dueDate = new Date(dueDate);
+    } else {
+      update.$unset = { dueDate: 1 };
+    }
+    const activity = await this.activityModel.findByIdAndUpdate(id, update, {
+      new: true,
+    });
+    if (!activity) throw new NotFoundException('Activity not found');
+    return activity;
   }
 
   private toPublicPath(path: string): string {

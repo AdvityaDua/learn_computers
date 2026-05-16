@@ -26,6 +26,10 @@ export class School {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
   teacherIds: Types.ObjectId[];
 
+  /** Max students allowed in this school; 0 = unlimited */
+  @Prop({ type: Number, default: 0, min: 0 })
+  maxStudents: number;
+
   @Prop({ default: true })
   isActive: boolean;
 }

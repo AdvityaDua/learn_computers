@@ -1,8 +1,14 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
-export const SUBMISSION_REVIEW_STATUSES = ['pending', 'approved', 'rejected', 'resubmit_requested'] as const;
-export type SubmissionReviewStatus = (typeof SUBMISSION_REVIEW_STATUSES)[number];
+export const SUBMISSION_REVIEW_STATUSES = [
+  'pending',
+  'approved',
+  'rejected',
+  'resubmit_requested',
+] as const;
+export type SubmissionReviewStatus =
+  (typeof SUBMISSION_REVIEW_STATUSES)[number];
 
 @Schema({ timestamps: true })
 export class SubmissionProgress {
@@ -42,6 +48,10 @@ export class SubmissionProgress {
 
   @Prop({ default: '' })
   reviewFeedback?: string;
+
+  /** Points awarded by teacher/admin on approval */
+  @Prop({ type: Number, default: 0, min: 0 })
+  pointsAwarded: number;
 }
 
 export type SubmissionProgressDocument = HydratedDocument<SubmissionProgress>;

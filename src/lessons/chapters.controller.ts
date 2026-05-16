@@ -31,7 +31,10 @@ export class ChaptersController {
 
   @Post()
   @Roles(UserRole.Admin)
-  create(@Body() dto: CreateChapterDto, @Req() req: Request & { user: AuthUser }) {
+  create(
+    @Body() dto: CreateChapterDto,
+    @Req() req: Request & { user: AuthUser },
+  ) {
     return this.chaptersService.create(dto, req.user.sub);
   }
 

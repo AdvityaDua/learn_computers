@@ -64,7 +64,9 @@ export class AuthService {
     }
 
     if (decodedToken.firebase?.sign_in_provider !== 'google.com') {
-      throw new UnauthorizedException('Only Google sign-in is allowed for this endpoint');
+      throw new UnauthorizedException(
+        'Only Google sign-in is allowed for this endpoint',
+      );
     }
 
     const normalizedEmail = decodedToken.email.toLowerCase();
@@ -72,7 +74,8 @@ export class AuthService {
     let user = await this.usersService.findByFirebaseUid(decodedToken.uid);
 
     if (!user) {
-      const existingByEmail = await this.usersService.findByEmail(normalizedEmail);
+      const existingByEmail =
+        await this.usersService.findByEmail(normalizedEmail);
 
       if (existingByEmail) {
         if (
@@ -87,7 +90,10 @@ export class AuthService {
         existingByEmail.firebaseUid = decodedToken.uid;
         existingByEmail.authProvider = 'google';
         // Update photo if Google provides one and user doesn't have a custom upload
-        if (googlePicture && !existingByEmail.profileImage?.startsWith('/uploads/')) {
+        if (
+          googlePicture &&
+          !existingByEmail.profileImage?.startsWith('/uploads/')
+        ) {
           existingByEmail.profileImage = googlePicture;
         }
         user = await existingByEmail.save();
@@ -105,13 +111,17 @@ export class AuthService {
             profileImage: googlePicture,
           });
         } catch {
-          throw new InternalServerErrorException('Unable to create Google user');
+          throw new InternalServerErrorException(
+            'Unable to create Google user',
+          );
         }
       }
     } else {
       // Existing Google user — refresh their photo if they haven't uploaded a custom one
       if (googlePicture && !user.profileImage?.startsWith('/uploads/')) {
-        user = await this.usersService.update(user.id, { profileImage: googlePicture });
+        user = await this.usersService.update(user.id, {
+          profileImage: googlePicture,
+        });
       }
     }
 

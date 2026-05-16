@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsArray, IsBoolean, IsEmail } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsBoolean,
+  IsEmail,
+} from 'class-validator';
 
 export class CreateSchoolDto {
   @IsString()

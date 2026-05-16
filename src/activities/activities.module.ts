@@ -6,7 +6,9 @@ import { Activity, ActivitySchema } from './schemas/activity.schema';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Activity.name, schema: ActivitySchema }]),
+    MongooseModule.forFeature([
+      { name: Activity.name, schema: ActivitySchema },
+    ]),
   ],
   controllers: [ActivitiesController],
   providers: [ActivitiesService],

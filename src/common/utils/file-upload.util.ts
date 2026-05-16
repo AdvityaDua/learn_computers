@@ -12,7 +12,9 @@ export const buildDiskStorage = (folder: string) =>
   diskStorage({
     destination: `./uploads/${folder}`,
     filename: (_req, file, cb) => {
-      const name = sanitizeFilename(file.originalname.replace(extname(file.originalname), ''));
+      const name = sanitizeFilename(
+        file.originalname.replace(extname(file.originalname), ''),
+      );
       const extension = extname(file.originalname).toLowerCase();
       cb(null, `${Date.now()}-${name}${extension}`);
     },
@@ -25,7 +27,10 @@ export const markdownFileFilter = (
 ) => {
   const extension = extname(file.originalname).toLowerCase();
   if (extension !== '.md') {
-    cb(new BadRequestException('Only .md files are allowed for descriptions'), false);
+    cb(
+      new BadRequestException('Only .md files are allowed for descriptions'),
+      false,
+    );
     return;
   }
   cb(null, true);

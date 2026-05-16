@@ -6,7 +6,9 @@ import { Assignment, AssignmentSchema } from './schemas/assignment.schema';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Assignment.name, schema: AssignmentSchema }]),
+    MongooseModule.forFeature([
+      { name: Assignment.name, schema: AssignmentSchema },
+    ]),
   ],
   controllers: [AssignmentsController],
   providers: [AssignmentsService],

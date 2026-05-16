@@ -8,8 +8,14 @@ import { Chapter, ChapterSchema } from './schemas/chapter.schema';
 import { ChaptersController } from './chapters.controller';
 import { ChaptersService } from './chapters.service';
 import { Quiz, QuizSchema } from '../quizzes/schemas/quiz.schema';
-import { Assignment, AssignmentSchema } from '../assignments/schemas/assignment.schema';
-import { Activity, ActivitySchema } from '../activities/schemas/activity.schema';
+import {
+  Assignment,
+  AssignmentSchema,
+} from '../assignments/schemas/assignment.schema';
+import {
+  Activity,
+  ActivitySchema,
+} from '../activities/schemas/activity.schema';
 import { buildDiskStorage } from '../common/utils/file-upload.util';
 
 @Module({

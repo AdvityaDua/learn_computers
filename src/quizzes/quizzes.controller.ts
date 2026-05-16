@@ -58,4 +58,10 @@ export class QuizzesController {
   remove(@Param('id') id: string) {
     return this.quizzesService.remove(id);
   }
+
+  @Patch(':id/due-date')
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  updateDueDate(@Param('id') id: string, @Body('dueDate') dueDate: string) {
+    return this.quizzesService.updateDueDate(id, dueDate);
+  }
 }

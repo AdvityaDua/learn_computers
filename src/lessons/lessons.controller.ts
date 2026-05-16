@@ -18,7 +18,10 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/constants/roles.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { buildDiskStorage, fileSizeLimit } from '../common/utils/file-upload.util';
+import {
+  buildDiskStorage,
+  fileSizeLimit,
+} from '../common/utils/file-upload.util';
 import { AuthUser } from '../common/types/auth-user.type';
 import { LessonsService } from './lessons.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';

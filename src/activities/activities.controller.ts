@@ -13,7 +13,10 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
+import {
+  FileFieldsInterceptor,
+  FileInterceptor,
+} from '@nestjs/platform-express';
 import { Request } from 'express';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/constants/roles.enum';
@@ -116,5 +119,11 @@ export class ActivitiesController {
   @Roles(UserRole.Admin)
   remove(@Param('id') id: string) {
     return this.activitiesService.remove(id);
+  }
+
+  @Patch(':id/due-date')
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  updateDueDate(@Param('id') id: string, @Body('dueDate') dueDate: string) {
+    return this.activitiesService.updateDueDate(id, dueDate);
   }
 }

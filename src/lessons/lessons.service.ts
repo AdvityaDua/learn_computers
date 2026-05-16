@@ -19,7 +19,10 @@ type LessonFiles = {
 
 @Injectable()
 export class LessonsService {
-  constructor(@InjectModel(Lesson.name) private readonly lessonModel: Model<LessonDocument>) {}
+  constructor(
+    @InjectModel(Lesson.name)
+    private readonly lessonModel: Model<LessonDocument>,
+  ) {}
 
   async create(dto: CreateLessonDto, files: LessonFiles, userId: string) {
     const description = files.descriptionFile?.[0];
@@ -31,12 +34,20 @@ export class LessonsService {
 
     let parsedTags: string[] = [];
     if (dto.tags) {
-      try { parsedTags = JSON.parse(dto.tags); } catch { parsedTags = []; }
+      try {
+        parsedTags = JSON.parse(dto.tags);
+      } catch {
+        parsedTags = [];
+      }
     }
 
     let parsedClassIds: string[] = ['Class 3'];
     if (dto.classIds) {
-      try { parsedClassIds = JSON.parse(dto.classIds); } catch { parsedClassIds = ['Class 3']; }
+      try {
+        parsedClassIds = JSON.parse(dto.classIds);
+      } catch {
+        parsedClassIds = ['Class 3'];
+      }
     }
 
     return this.lessonModel.create({
@@ -47,7 +58,9 @@ export class LessonsService {
       documentFilePath: files.documentFile?.[0]
         ? this.toPublicPath(files.documentFile[0].path)
         : '',
-      videoFilePath: files.videoFile?.[0] ? this.toPublicPath(files.videoFile[0].path) : '',
+      videoFilePath: files.videoFile?.[0]
+        ? this.toPublicPath(files.videoFile[0].path)
+        : '',
       thumbnailFilePath: files.thumbnailFile?.[0]
         ? this.toPublicPath(files.thumbnailFile[0].path)
         : '',
@@ -64,10 +77,7 @@ export class LessonsService {
 
     if (search?.trim()) {
       const pattern = new RegExp(search.trim(), 'i');
-      query.$or = [
-        { title: pattern },
-        { tags: pattern },
-      ];
+      query.$or = [{ title: pattern }, { tags: pattern }];
     }
 
     if (!page || !limit) {
@@ -112,11 +122,19 @@ export class LessonsService {
     };
 
     if (dto.tags !== undefined) {
-      try { updateData.tags = JSON.parse(dto.tags as string); } catch { updateData.tags = []; }
+      try {
+        updateData.tags = JSON.parse(dto.tags as string);
+      } catch {
+        updateData.tags = [];
+      }
     }
 
     if (dto.classIds !== undefined) {
-      try { updateData.classIds = JSON.parse(dto.classIds as string); } catch { updateData.classIds = ['Class 3']; }
+      try {
+        updateData.classIds = JSON.parse(dto.classIds as string);
+      } catch {
+        updateData.classIds = ['Class 3'];
+      }
     }
 
     const description = files.descriptionFile?.[0];

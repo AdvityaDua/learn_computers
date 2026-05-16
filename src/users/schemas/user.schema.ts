@@ -18,7 +18,11 @@ export class User {
   @Prop({ trim: true, default: 'local' })
   authProvider: string;
 
-  @Prop({ required: true, enum: Object.values(UserRole), default: UserRole.Student })
+  @Prop({
+    required: true,
+    enum: Object.values(UserRole),
+    default: UserRole.Student,
+  })
   role: UserRole;
 
   @Prop({ required: true, trim: true })
@@ -29,6 +33,10 @@ export class User {
 
   @Prop({ type: Types.ObjectId, ref: 'School' })
   schoolId?: Types.ObjectId;
+
+  /** The teacher this student is assigned to (required for students) */
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  teacherId?: Types.ObjectId;
 
   @Prop({ type: [String], default: [] })
   classIds: string[];

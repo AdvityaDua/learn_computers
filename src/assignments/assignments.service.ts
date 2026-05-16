@@ -34,7 +34,11 @@ export class AssignmentsService {
     return { url: this.toPublicPath(file.path) };
   }
 
-  async create(dto: CreateAssignmentDto, files: AssignmentFiles, userId: string) {
+  async create(
+    dto: CreateAssignmentDto,
+    files: AssignmentFiles,
+    userId: string,
+  ) {
     const description = files.descriptionFile?.[0];
     if (!description) {
       throw new BadRequestException('descriptionFile (.md) is required');
@@ -43,17 +47,29 @@ export class AssignmentsService {
 
     let parsedTags: string[] = [];
     if (dto.tags) {
-      try { parsedTags = JSON.parse(dto.tags); } catch { parsedTags = []; }
+      try {
+        parsedTags = JSON.parse(dto.tags);
+      } catch {
+        parsedTags = [];
+      }
     }
 
     let parsedFileTypes: string[] = [];
     if (dto.acceptedFileTypes) {
-      try { parsedFileTypes = JSON.parse(dto.acceptedFileTypes); } catch { parsedFileTypes = []; }
+      try {
+        parsedFileTypes = JSON.parse(dto.acceptedFileTypes);
+      } catch {
+        parsedFileTypes = [];
+      }
     }
 
     let parsedClassIds: string[] = ['Class 3'];
     if (dto.classIds) {
-      try { parsedClassIds = JSON.parse(dto.classIds); } catch { parsedClassIds = ['Class 3']; }
+      try {
+        parsedClassIds = JSON.parse(dto.classIds);
+      } catch {
+        parsedClassIds = ['Class 3'];
+      }
     }
 
     return this.assignmentModel.create({
@@ -66,7 +82,8 @@ export class AssignmentsService {
       tags: parsedTags,
       points: dto.points != null ? Number(dto.points) : undefined,
       createdBy: new Types.ObjectId(userId),
-      requiresSubmission: dto.requiresSubmission === 'true' || dto.requiresSubmission === '1',
+      requiresSubmission:
+        dto.requiresSubmission === 'true' || dto.requiresSubmission === '1',
       acceptedFileTypes: parsedFileTypes,
       classIds: parsedClassIds,
     });
@@ -77,10 +94,7 @@ export class AssignmentsService {
 
     if (search?.trim()) {
       const pattern = new RegExp(search.trim(), 'i');
-      query.$or = [
-        { title: pattern },
-        { tags: pattern },
-      ];
+      query.$or = [{ title: pattern }, { tags: pattern }];
     }
 
     if (!page || !limit) {
@@ -124,17 +138,32 @@ export class AssignmentsService {
 
     if (dto.dueDate) updateData.dueDate = new Date(dto.dueDate);
     if (dto.tags !== undefined) {
-      try { updateData.tags = JSON.parse(dto.tags as string); } catch { updateData.tags = []; }
+      try {
+        updateData.tags = JSON.parse(dto.tags as string);
+      } catch {
+        updateData.tags = [];
+      }
     }
     if (dto.points != null) updateData.points = Number(dto.points);
     if (dto.requiresSubmission !== undefined) {
-      updateData.requiresSubmission = dto.requiresSubmission === 'true' || dto.requiresSubmission === '1';
+      updateData.requiresSubmission =
+        dto.requiresSubmission === 'true' || dto.requiresSubmission === '1';
     }
     if (dto.acceptedFileTypes !== undefined) {
-      try { updateData.acceptedFileTypes = JSON.parse(dto.acceptedFileTypes as string); } catch { updateData.acceptedFileTypes = []; }
+      try {
+        updateData.acceptedFileTypes = JSON.parse(
+          dto.acceptedFileTypes as string,
+        );
+      } catch {
+        updateData.acceptedFileTypes = [];
+      }
     }
     if (dto.classIds !== undefined) {
-      try { updateData.classIds = JSON.parse(dto.classIds as string); } catch { updateData.classIds = ['Class 3']; }
+      try {
+        updateData.classIds = JSON.parse(dto.classIds as string);
+      } catch {
+        updateData.classIds = ['Class 3'];
+      }
     }
 
     const description = files.descriptionFile?.[0];
@@ -148,10 +177,14 @@ export class AssignmentsService {
       updateData.attachmentFilePath = this.toPublicPath(attachment.path);
     }
 
-    const assignment = await this.assignmentModel.findByIdAndUpdate(id, updateData, {
-      new: true,
-      runValidators: true,
-    });
+    const assignment = await this.assignmentModel.findByIdAndUpdate(
+      id,
+      updateData,
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
     if (!assignment) throw new NotFoundException('Assignment not found');
     return assignment;
   }
@@ -161,6 +194,23 @@ export class AssignmentsService {
     const assignment = await this.assignmentModel.findByIdAndDelete(id);
     if (!assignment) throw new NotFoundException('Assignment not found');
     return { message: 'Assignment deleted successfully' };
+  }
+
+  async updateDueDate(id: string, dueDate: string) {
+    this.ensureObjectId(id);
+    const update: any = {};
+    if (dueDate) {
+      update.dueDate = new Date(dueDate);
+    } else {
+      update.$unset = { dueDate: 1 };
+    }
+    const assignment = await this.assignmentModel.findByIdAndUpdate(
+      id,
+      update,
+      { new: true },
+    );
+    if (!assignment) throw new NotFoundException('Assignment not found');
+    return assignment;
   }
 
   private toPublicPath(path: string): string {

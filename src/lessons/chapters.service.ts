@@ -8,10 +8,20 @@ import { Model, Types } from 'mongoose';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { Lesson, LessonDocument, LessonType } from './schemas/lesson.schema';
-import { Chapter, ChapterDocument, ChapterLessonItemType } from './schemas/chapter.schema';
+import {
+  Chapter,
+  ChapterDocument,
+  ChapterLessonItemType,
+} from './schemas/chapter.schema';
 import { Quiz, QuizDocument } from '../quizzes/schemas/quiz.schema';
-import { Assignment, AssignmentDocument } from '../assignments/schemas/assignment.schema';
-import { Activity, ActivityDocument } from '../activities/schemas/activity.schema';
+import {
+  Assignment,
+  AssignmentDocument,
+} from '../assignments/schemas/assignment.schema';
+import {
+  Activity,
+  ActivityDocument,
+} from '../activities/schemas/activity.schema';
 import { CreateChapterDto } from './dto/create-chapter.dto';
 import { CreateChapterLessonDto } from './dto/create-chapter-lesson.dto';
 import {
@@ -35,7 +45,10 @@ export class ChaptersService {
     private readonly activityModel: Model<ActivityDocument>,
   ) {}
 
-  async create(dto: CreateChapterDto, userId: string): Promise<ChapterDocument> {
+  async create(
+    dto: CreateChapterDto,
+    userId: string,
+  ): Promise<ChapterDocument> {
     const chapterDescription = dto.description ?? '';
     const chapterDescriptionFilePath = await this.writeMarkdownFile(
       chapterDescription,
@@ -53,8 +66,13 @@ export class ChaptersService {
   }
 
   async findAll() {
-    const chapters = await this.chapterModel.find().sort({ createdAt: 1 }).lean();
-    return Promise.all(chapters.map((chapter) => this.decorateChapterForResponse(chapter)));
+    const chapters = await this.chapterModel
+      .find()
+      .sort({ createdAt: 1 })
+      .lean();
+    return Promise.all(
+      chapters.map((chapter) => this.decorateChapterForResponse(chapter)),
+    );
   }
 
   async findOne(id: string) {
@@ -91,7 +109,9 @@ export class ChaptersService {
     if (!chapter) throw new NotFoundException('Chapter not found');
 
     if (dto.lessonIds.length !== chapter.lessons.length) {
-      throw new BadRequestException('lessonIds must include all chapter lessons');
+      throw new BadRequestException(
+        'lessonIds must include all chapter lessons',
+      );
     }
 
     const existingIds = new Set(
@@ -114,7 +134,11 @@ export class ChaptersService {
     return this.findOne(chapterId);
   }
 
-  async updateLesson(chapterId: string, lessonId: string, dto: UpdateChapterLessonDto) {
+  async updateLesson(
+    chapterId: string,
+    lessonId: string,
+    dto: UpdateChapterLessonDto,
+  ) {
     const chapter = await this.chapterModel.findById(chapterId);
     if (!chapter) throw new NotFoundException('Chapter not found');
 
@@ -190,9 +214,14 @@ export class ChaptersService {
       }
 
       if (item.type === ChapterLessonItemType.Video) {
-        const lesson = await this.lessonModel.findById(item.refId).select('type').lean();
+        const lesson = await this.lessonModel
+          .findById(item.refId)
+          .select('type')
+          .lean();
         if (!lesson || lesson.type !== LessonType.Video) {
-          throw new BadRequestException('Only video lessons can be added as video items');
+          throw new BadRequestException(
+            'Only video lessons can be added as video items',
+          );
         }
       }
     }
@@ -208,11 +237,18 @@ export class ChaptersService {
     this.ensureObjectId(chapterId, 'Invalid chapter id');
     if (!file) throw new BadRequestException('No image file provided');
     const filePath = `/uploads/chapters/${file.filename}`;
-    await this.chapterModel.updateOne({ _id: chapterId }, { coverImageFilePath: filePath });
+    await this.chapterModel.updateOne(
+      { _id: chapterId },
+      { coverImageFilePath: filePath },
+    );
     return { coverImageFilePath: filePath };
   }
 
-  async updateLessonCover(chapterId: string, lessonId: string, file: Express.Multer.File) {
+  async updateLessonCover(
+    chapterId: string,
+    lessonId: string,
+    file: Express.Multer.File,
+  ) {
     this.ensureObjectId(chapterId, 'Invalid chapter id');
     if (!file) throw new BadRequestException('No image file provided');
     const filePath = `/uploads/chapters/${file.filename}`;

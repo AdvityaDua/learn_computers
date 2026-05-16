@@ -13,8 +13,8 @@ export class ClassesService {
   async create(dto: CreateClassDto): Promise<ClassDocument> {
     return this.classModel.create({
       ...dto,
-      schoolIds: dto.schoolIds?.map(id => new Types.ObjectId(id)) ?? [],
-      teacherIds: dto.teacherIds?.map(id => new Types.ObjectId(id)) ?? [],
+      schoolIds: dto.schoolIds?.map((id) => new Types.ObjectId(id)) ?? [],
+      teacherIds: dto.teacherIds?.map((id) => new Types.ObjectId(id)) ?? [],
     });
   }
 
@@ -26,7 +26,8 @@ export class ClassesService {
     const safeLimit = Math.min(100, Math.max(1, limit));
 
     const [items, total] = await Promise.all([
-      this.classModel.find(query)
+      this.classModel
+        .find(query)
         .populate('schoolIds', 'name code')
         .populate('teacherIds', 'fullName email')
         .sort({ grade: 1 })
@@ -36,23 +37,38 @@ export class ClassesService {
       this.classModel.countDocuments(query),
     ]);
 
-    return { items, total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit) || 1 };
+    return {
+      items,
+      total,
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.ceil(total / safeLimit) || 1,
+    };
   }
 
   async findOne(id: string): Promise<ClassDocument> {
-    const classDoc = await this.classModel.findById(id)
+    const classDoc = await this.classModel
+      .findById(id)
       .populate('schoolIds', 'name code')
       .populate('teacherIds', 'fullName email');
     if (!classDoc) throw new NotFoundException('Class not found');
     return classDoc;
   }
 
-  async update(id: string, dto: Partial<CreateClassDto>): Promise<ClassDocument> {
+  async update(
+    id: string,
+    dto: Partial<CreateClassDto>,
+  ): Promise<ClassDocument> {
     const patch: any = { ...dto };
-    if (dto.schoolIds) patch.schoolIds = dto.schoolIds.map(id => new Types.ObjectId(id));
-    if (dto.teacherIds) patch.teacherIds = dto.teacherIds.map(id => new Types.ObjectId(id));
+    if (dto.schoolIds)
+      patch.schoolIds = dto.schoolIds.map((id) => new Types.ObjectId(id));
+    if (dto.teacherIds)
+      patch.teacherIds = dto.teacherIds.map((id) => new Types.ObjectId(id));
 
-    const classDoc = await this.classModel.findByIdAndUpdate(id, patch, { new: true, runValidators: true });
+    const classDoc = await this.classModel.findByIdAndUpdate(id, patch, {
+      new: true,
+      runValidators: true,
+    });
     if (!classDoc) throw new NotFoundException('Class not found');
     return classDoc;
   }
@@ -67,7 +83,7 @@ export class ClassesService {
     const classDoc = await this.classModel.findByIdAndUpdate(
       classId,
       { $addToSet: { teacherIds: new Types.ObjectId(teacherId) } },
-      { new: true }
+      { new: true },
     );
     if (!classDoc) throw new NotFoundException('Class not found');
     return classDoc;
@@ -77,7 +93,7 @@ export class ClassesService {
     const classDoc = await this.classModel.findByIdAndUpdate(
       classId,
       { $pull: { teacherIds: new Types.ObjectId(teacherId) } },
-      { new: true }
+      { new: true },
     );
     if (!classDoc) throw new NotFoundException('Class not found');
     return classDoc;
