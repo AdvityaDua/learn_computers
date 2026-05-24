@@ -175,7 +175,7 @@ export default function DashboardPage() {
         if (profileRes.ok) handleUserUpdate((await profileRes.json()) as UserData);
 
         const headers = { Authorization: `Bearer ${token}` };
-        const [chapRes, vidRes, quizRes, asgRes, actRes, boardRes, progressRes] = await Promise.all([
+        const [chapRes, vidRes, quizRes, asgRes, actRes, boardRes, progressRes, deadRes] = await Promise.all([
           fetch(`${API_BASE}/chapters`, { headers }),
           fetch(`${API_BASE}/lessons?page=1&limit=60&type=video`, { headers }),
           fetch(`${API_BASE}/quizzes?page=1&limit=60`, { headers }),
@@ -183,9 +183,10 @@ export default function DashboardPage() {
           fetch(`${API_BASE}/activities?page=1&limit=60`, { headers }),
           fetch(`${API_BASE}/users/leaderboard`, { headers }),
           fetch(`${API_BASE}/progress/lessons`, { headers }),
+          fetch(`${API_BASE}/progress/student/deadlines`, { headers }),
         ]);
 
-        const [chapData, vidData, quizData, asgData, actData, boardData, progressData] = await Promise.all([
+        const [chapData, vidData, quizData, asgData, actData, boardData, progressData, deadData] = await Promise.all([
           chapRes.ok ? chapRes.json() : [],
           vidRes.ok ? vidRes.json() : [],
           quizRes.ok ? quizRes.json() : [],
@@ -195,13 +196,32 @@ export default function DashboardPage() {
           progressRes.ok
             ? progressRes.json()
             : { totalLessons: 0, completedLessons: 0, pendingLessons: 0, completionPercentage: 0, completedLessonIds: [] },
+          deadRes.ok ? deadRes.json() : [],
         ]);
+
+        const deadlines = Array.isArray(deadData) ? deadData : [];
+        const assignmentMap = new Map();
+        const activityMap = new Map();
+        deadlines.forEach((d: any) => {
+          if (d.taskType === 'assignment') assignmentMap.set(d.taskId, d.dueDate);
+          if (d.taskType === 'activity') activityMap.set(d.taskId, d.dueDate);
+        });
+
+        const parsedAssignments = toItems<Assignment>(asgData).map(a => ({
+          ...a,
+          dueDate: assignmentMap.get(String(a._id)) ?? a.dueDate,
+        }));
+        
+        const parsedActivities = toItems<ActivityItem>(actData).map(a => ({
+          ...a,
+          dueDate: activityMap.get(String(a._id)) ?? a.dueDate,
+        }));
 
         setChapters(Array.isArray(chapData) ? chapData : []);
         setVideos(toItems<VideoLesson>(vidData));
         setQuizzes(toItems<Quiz>(quizData));
-        setAssignments(toItems<Assignment>(asgData));
-        setActivities(toItems<ActivityItem>(actData));
+        setAssignments(parsedAssignments);
+        setActivities(parsedActivities);
         setLeaderboardUsers(Array.isArray(boardData) ? boardData : []);
         setLessonProgress(progressData as LessonProgressSummary);
       } catch {

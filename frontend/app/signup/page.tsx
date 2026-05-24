@@ -69,6 +69,8 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
+      // Note: students cannot self-register — they are enrolled by a teacher or admin.
+      // This form is for teacher/staff account creation via admin invitation only.
       const data = await postAuth("/auth/register", {
         fullName,
         email,
@@ -120,6 +122,20 @@ export default function SignupPage() {
         <section className="mx-auto w-full max-w-md auth-card p-6 md:p-8">
           <h1 className="mt-5 text-3xl font-black">Create your account</h1>
           <p className="section-subtitle">Set up your account to start learning and monitor your growth from day one.</p>
+
+          {/* Enrollment notice */}
+          <div style={{ marginTop: "1.25rem", background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.25)", borderRadius: "0.75rem", padding: "1rem 1.25rem" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.625rem" }}>
+              <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 2 }}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              <div>
+                <p style={{ fontSize: "0.8125rem", fontWeight: 700, color: "#3b82f6", margin: 0 }}>Student Enrollment Required</p>
+                <p style={{ fontSize: "0.75rem", color: "#60a5fa", margin: "0.25rem 0 0", lineHeight: 1.5 }}>
+                  Students are enrolled by their teacher or school administrator. If you&apos;re a student, contact your teacher for an account.
+                  This form is for returning users signing in with Google.
+                </p>
+              </div>
+            </div>
+          </div>
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             <div>

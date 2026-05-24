@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "25462936639",
+    "project_id": "computer-sci-c88e9",
+    "storage_bucket": "computer-sci-c88e9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:25462936639:android:c5f4fc389d04010ba3148a",
+        "android_client_info": {
+          "package_name": "com.karmansingh.learncomputer"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "25462936639-19gsk8g61619hmpmo3ltmpb7fgd6utcj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-TjFLD_pjt0m-1zv_ZO4Knj9opfIL56M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "25462936639-19gsk8g61619hmpmo3ltmpb7fgd6utcj.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "25462936639-fg6mbv6famcv3qo68ocgpsfpcqh4rv2f.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.karmansingh.learncomputer"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

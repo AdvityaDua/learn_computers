@@ -146,7 +146,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="auth-divider mt-6">or continue with</p>
+          {/* <p className="auth-divider mt-6">or continue with</p>
 
           <Button
             type="button"
@@ -159,14 +159,14 @@ export default function LoginPage() {
           >
             <GoogleIcon />
             {googleLoading ? "Connecting Google..." : "Continue with Google"}
-          </Button>
+          </Button> */}
 
-          <p className="theme-muted mt-6 text-center text-sm">
+          {/* <p className="theme-muted mt-6 text-center text-sm">
             Don&apos;t have an account?{" "}
             <Link href="/signup" className="accent-text font-semibold">
               Create one
             </Link>
-          </p>
+          </p> */}
         </section>
       </main>
 
