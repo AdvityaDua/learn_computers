@@ -4,12 +4,16 @@
 
 :root {
   --background: #f8fafc;
+  --background-rgb: 248, 250, 252;
   --foreground: #0f172a;
   --surface: #ffffff;
   --surface-soft: #f1f5f9;
   --border: #e2e8f0;
   --muted: #64748b;
-  --elevation-1: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+  --elevation-1: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --elevation-2: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --elevation-3: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --elevation-4: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
 
   --admin-accent: #f43f5e;
   --admin-accent-hover: #e11d48;
@@ -29,12 +33,16 @@
 
 html[data-theme="dark"] {
   --background: #090e1a;
+  --background-rgb: 9, 14, 26;
   --foreground: #f1f5f9;
   --surface: #111827;
   --surface-soft: #1f2937;
   --border: #374151;
   --muted: #94a3b8;
-  --elevation-1: 0 10px 24px rgba(0,0,0,0.4);
+  --elevation-1: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --elevation-2: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+  --elevation-3: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -4px rgba(0, 0, 0, 0.6);
+  --elevation-4: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.7);
 
   --admin-accent: #f43f5e;
   --admin-accent-hover: #fb7185;
@@ -148,8 +156,62 @@ body {
   letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.375rem;
 }
 
-.admin-card { background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem; box-shadow: var(--elevation-1); }
-.admin-card-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
+.admin-card { 
+  background: var(--surface); 
+  border: 1px solid var(--border); 
+  border-radius: 1rem; 
+  box-shadow: var(--elevation-1);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.admin-card:hover {
+  box-shadow: var(--elevation-2);
+}
+
+.admin-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4rem 2rem;
+  width: 100%;
+}
+
+.admin-container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.admin-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.admin-page-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--foreground);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.admin-page-subtitle {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+  margin-bottom: 0;
+}
+
+.admin-card-header { 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  padding: 1.25rem 1.5rem; 
+  border-bottom: 1px solid var(--border); 
+}
 
 .admin-badge {
   display: inline-flex; align-items: center; gap: 0.25rem;
@@ -170,13 +232,18 @@ body {
 .admin-table tbody tr:hover { background: var(--surface-soft); }
 
 .admin-sidebar-item {
-  display: flex; align-items: center; gap: 0.625rem;
-  padding: 0.5rem 0.75rem; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 500;
-  color: var(--muted); transition: background 0.15s, color 0.15s;
+  display: flex; align-items: center; gap: 0.875rem;
+  padding: 0.625rem 0.875rem; border-radius: 0.75rem; font-size: 0.8125rem; font-weight: 600;
+  color: var(--muted); transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer; border: none; background: none; width: 100%; text-align: left;
+  user-select: none;
 }
 .admin-sidebar-item:hover { background: var(--surface-soft); color: var(--foreground); }
-.admin-sidebar-item.active { background: var(--admin-accent-soft); color: var(--admin-accent-text); font-weight: 600; }
+.admin-sidebar-item.active { 
+  background: var(--admin-accent-soft); 
+  color: var(--admin-accent-text); 
+  box-shadow: inset 0 0 0 1px var(--admin-accent-soft-border);
+}
 
 .admin-stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.25rem; box-shadow: var(--elevation-1); }
 

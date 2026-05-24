@@ -5,6 +5,7 @@ import Markdown from "react-markdown";
 // useRef is used by DropZone; useCallback by DropZone's handleDrop
 import { AdminAuthError, fetchAdmin } from "../lib/admin-api";
 import { MarkdownEditor } from "./markdown-editor";
+import { ClassMultiSelect } from "./class-multi-select";
 import {
   Pencil,
   Trash2,
@@ -30,6 +31,7 @@ interface VideoLesson {
   tags: string[];
   descriptionFilePath: string;
   createdAt: string;
+  classIds?: string[];
 }
 
 /* ─── Helpers ──────────────────────────────────────────────────────────────── */
@@ -215,6 +217,7 @@ function UploadVideoDialog({ open, onClose, onSuccess, editingVideo, apiBase }: 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  const [classIds, setClassIds] = useState<string[]>(["Class 3"]);
   const [videoMode, setVideoMode] = useState<"upload" | "url">("upload");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState("");
@@ -226,7 +229,7 @@ function UploadVideoDialog({ open, onClose, onSuccess, editingVideo, apiBase }: 
   const [loadingExisting, setLoadingExisting] = useState(false);
 
   const reset = () => {
-    setTitle(""); setDescription(""); setTags([]);
+    setTitle(""); setDescription(""); setTags([]); setClassIds(["Class 3"]);
     setVideoMode("upload"); setVideoFile(null); setVideoUrl("");
     setThumbnailFile(null); setThumbnailPreview(null);
     setUploading(false); setUploadProgress(0); setError("");
@@ -239,6 +242,7 @@ function UploadVideoDialog({ open, onClose, onSuccess, editingVideo, apiBase }: 
 
     setTitle(editingVideo.title ?? "");
     setTags(Array.isArray(editingVideo.tags) ? editingVideo.tags : []);
+    setClassIds(editingVideo.classIds || ["Class 3"]);
     setVideoMode(editingVideo.externalVideoUrl ? "url" : "upload");
     setVideoUrl(editingVideo.externalVideoUrl ?? "");
     setVideoFile(null);
@@ -294,6 +298,7 @@ function UploadVideoDialog({ open, onClose, onSuccess, editingVideo, apiBase }: 
       formData.append("type", "video");
       if (videoMode === "url") formData.append("externalVideoUrl", videoUrl.trim());
       if (tags.length > 0) formData.append("tags", JSON.stringify(tags));
+      if (classIds.length > 0) formData.append("classIds", JSON.stringify(classIds));
 
       /* Serialize markdown description as a .md file */
       const mdBlob = new Blob([description], { type: "text/markdown" });
@@ -420,6 +425,10 @@ function UploadVideoDialog({ open, onClose, onSuccess, editingVideo, apiBase }: 
               <div>
                 <label className="admin-label">Tags <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— optional, press Enter or click Add</span></label>
                 <TagInput tags={tags} onChange={setTags} />
+              </div>
+              <div>
+                <label className="admin-label">Assigned Classes</label>
+                <ClassMultiSelect selectedIds={classIds} onChange={setClassIds} />
               </div>
             </div>
           </section>
@@ -799,6 +808,14 @@ function VideoCard({ video, apiBase, onDelete, onEdit }: {
               >
                 #{tag}
               </span>
+            ))}
+          </div>
+        )}
+
+        {video.classIds && video.classIds.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginTop: "0.25rem" }}>
+            {video.classIds.map((cls) => (
+              <span key={cls} className="admin-badge admin-badge-blue" style={{ fontSize: "0.65rem", padding: "0.1rem 0.3rem" }}>{cls}</span>
             ))}
           </div>
         )}

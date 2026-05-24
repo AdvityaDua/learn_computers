@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminAuthError, fetchAdmin, getAdminToken } from "../lib/admin-api";
 import { MarkdownEditor, renderMarkdown } from "./markdown-editor";
+import { ClassMultiSelect } from "./class-multi-select";
 import { DatePicker } from "./date-picker";
 import {
   Plus,
@@ -29,6 +30,7 @@ interface Assignment {
   createdAt: string;
   requiresSubmission?: boolean;
   acceptedFileTypes?: string[];
+  classIds?: string[];
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -147,6 +149,7 @@ function AssignmentDialog({ open, editing, onClose, onSuccess }: DialogProps) {
   const [points, setPoints] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [attachFile, setAttachFile] = useState<File | null>(null);
+  const [classIds, setClassIds] = useState<string[]>(["Class 3"]);
   const [requiresSubmission, setRequiresSubmission] = useState(false);
   const [acceptedFileTypes, setAcceptedFileTypes] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -162,8 +165,7 @@ function AssignmentDialog({ open, editing, onClose, onSuccess }: DialogProps) {
       setTags(editing.tags ?? []);
       setPoints(editing.points != null ? String(editing.points) : "");
       setDueDate(editing.dueDate ? editing.dueDate.slice(0, 10) : "");
-      setRequiresSubmission(editing.requiresSubmission ?? false);
-      setAcceptedFileTypes(editing.acceptedFileTypes ?? []);
+      setClassIds(editing.classIds || ["Class 3"]);
       setRequiresSubmission(editing.requiresSubmission ?? false);
       setAcceptedFileTypes(editing.acceptedFileTypes ?? []);
       /* Fetch the .md file content to show in editor */
@@ -172,14 +174,14 @@ function AssignmentDialog({ open, editing, onClose, onSuccess }: DialogProps) {
         .then(setDescription)
         .catch(() => setDescription(""));
     } else {
-      setTitle(""); setDescription(""); setTags([]);
+      setTitle(""); setDescription(""); setTags([]); setClassIds(["Class 3"]);
       setPoints(""); setDueDate(""); setAttachFile(null); setError("");
       setRequiresSubmission(false); setAcceptedFileTypes([]);
     }
   }, [open, editing]);
 
   const reset = () => {
-    setTitle(""); setDescription(""); setTags([]); setPoints("");
+    setTitle(""); setDescription(""); setTags([]); setPoints(""); setClassIds(["Class 3"]);
     setDueDate(""); setAttachFile(null); setSaving(false); setError("");
     setRequiresSubmission(false); setAcceptedFileTypes([]);
   };
@@ -212,8 +214,7 @@ function AssignmentDialog({ open, editing, onClose, onSuccess }: DialogProps) {
       if (dueDate) formData.append("dueDate", new Date(dueDate).toISOString());
       if (tags.length > 0) formData.append("tags", JSON.stringify(tags));
       if (points.trim()) formData.append("points", points.trim());
-      formData.append("requiresSubmission", requiresSubmission ? "true" : "false");
-      formData.append("acceptedFileTypes", JSON.stringify(acceptedFileTypes));
+      if (classIds.length > 0) formData.append("classIds", JSON.stringify(classIds));
       formData.append("requiresSubmission", requiresSubmission ? "true" : "false");
       formData.append("acceptedFileTypes", JSON.stringify(acceptedFileTypes));
 
@@ -353,6 +354,11 @@ function AssignmentDialog({ open, editing, onClose, onSuccess }: DialogProps) {
               <div style={{ gridColumn: "1 / -1" }}>
                 <label className="admin-label">Tags <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— press Enter or click Add</span></label>
                 <TagInput tags={tags} onChange={setTags} />
+              </div>
+
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label className="admin-label">Assigned Classes</label>
+                <ClassMultiSelect selectedIds={classIds} onChange={setClassIds} />
               </div>
             </div>
           </section>
@@ -995,6 +1001,13 @@ export function AssignmentsView() {
                         )}
                         {(!a.tags || a.tags.length === 0) && <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>—</span>}
                       </div>
+                      {a.classIds && a.classIds.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginTop: "0.25rem" }}>
+                          {a.classIds.map((cls) => (
+                            <span key={cls} className="admin-badge admin-badge-blue" style={{ fontSize: "0.65rem", padding: "0.1rem 0.3rem" }}>{cls}</span>
+                          ))}
+                        </div>
+                      )}
                     </td>
 
                     {/* Points */}

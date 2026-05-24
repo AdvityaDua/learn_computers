@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminAuthError, fetchAdmin, getAdminToken } from "../lib/admin-api";
 import { MarkdownEditor, renderMarkdown } from "./markdown-editor";
+import { ClassMultiSelect } from "./class-multi-select";
 import { DatePicker } from "./date-picker";
 import {
   Plus,
@@ -25,6 +26,7 @@ interface Activity {
   createdAt: string;
   requiresSubmission?: boolean;
   acceptedFileTypes?: string[];
+  classIds?: string[];
 }
 
 const API_BASE = () =>
@@ -112,6 +114,7 @@ function ActivityDialog({ open, editing, onClose, onSuccess }: DialogProps) {
   const [points, setPoints] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [attachFile, setAttachFile] = useState<File | null>(null);
+  const [classIds, setClassIds] = useState<string[]>(["Class 3"]);
   const [requiresSubmission, setRequiresSubmission] = useState(false);
   const [acceptedFileTypes, setAcceptedFileTypes] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -126,6 +129,7 @@ function ActivityDialog({ open, editing, onClose, onSuccess }: DialogProps) {
       setTags(editing.tags ?? []);
       setPoints(editing.points != null ? String(editing.points) : "");
       setDueDate(editing.dueDate ? editing.dueDate.slice(0, 10) : "");
+      setClassIds(editing.classIds || ["Class 3"]);
       setRequiresSubmission(editing.requiresSubmission ?? false);
       setAcceptedFileTypes(editing.acceptedFileTypes ?? []);
       fetch(`${API_BASE()}${editing.descriptionFilePath}`)
@@ -138,6 +142,7 @@ function ActivityDialog({ open, editing, onClose, onSuccess }: DialogProps) {
       setTags([]);
       setPoints("");
       setDueDate("");
+      setClassIds(["Class 3"]);
       setAttachFile(null);
       setError("");
       setRequiresSubmission(false);
@@ -151,6 +156,7 @@ function ActivityDialog({ open, editing, onClose, onSuccess }: DialogProps) {
     setTags([]);
     setPoints("");
     setDueDate("");
+    setClassIds(["Class 3"]);
     setAttachFile(null);
     setSaving(false);
     setError("");
@@ -192,6 +198,7 @@ function ActivityDialog({ open, editing, onClose, onSuccess }: DialogProps) {
       if (dueDate) formData.append("dueDate", new Date(dueDate).toISOString());
       if (tags.length > 0) formData.append("tags", JSON.stringify(tags));
       if (points.trim()) formData.append("points", points.trim());
+      if (classIds.length > 0) formData.append("classIds", JSON.stringify(classIds));
       formData.append("requiresSubmission", requiresSubmission ? "true" : "false");
       formData.append("acceptedFileTypes", JSON.stringify(acceptedFileTypes));
 
@@ -250,6 +257,10 @@ function ActivityDialog({ open, editing, onClose, onSuccess }: DialogProps) {
             <div style={{ gridColumn: "1 / -1" }}>
               <label className="admin-label">Tags</label>
               <TagInput tags={tags} onChange={setTags} />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label className="admin-label">Assigned Classes</label>
+              <ClassMultiSelect selectedIds={classIds} onChange={setClassIds} />
             </div>
           </div>
 
@@ -525,6 +536,13 @@ export function ActivitiesView() {
                         {(a.tags ?? []).slice(0, 3).map((t) => <span key={t} className="admin-badge admin-badge-gray">#{t}</span>)}
                         {(a.tags ?? []).length === 0 && <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>-</span>}
                       </div>
+                      {a.classIds && a.classIds.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginTop: "0.25rem" }}>
+                          {a.classIds.map((cls) => (
+                            <span key={cls} className="admin-badge admin-badge-blue" style={{ fontSize: "0.65rem", padding: "0.1rem 0.3rem" }}>{cls}</span>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td>{a.points != null ? <span className="admin-badge admin-badge-blue">{a.points} pts</span> : <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>-</span>}</td>
                     <td>{badge ? <span className={`admin-badge ${badge.cls}`}>{badge.label}</span> : <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>No due date</span>}</td>

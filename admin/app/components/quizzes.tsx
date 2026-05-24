@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { AdminAuthError, fetchAdmin } from "../lib/admin-api";
 import { MarkdownEditor } from "./markdown-editor";
+import { ClassMultiSelect } from "./class-multi-select";
 
 interface QuizQuestion {
   question: string;
@@ -25,12 +26,14 @@ interface Quiz {
   description?: string;
   questions: QuizQuestion[];
   createdAt: string;
+  classIds?: string[];
 }
 
 interface QuizForm {
   title: string;
   description: string;
   questions: QuizQuestion[];
+  classIds: string[];
 }
 
 const blankQuestion = (): QuizQuestion => ({
@@ -62,6 +65,7 @@ function QuizDialog({
     title: "",
     description: "",
     questions: [blankQuestion()],
+    classIds: ["Class 3"],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -73,10 +77,11 @@ function QuizDialog({
         title: editing.title,
         description: editing.description ?? "",
         questions: editing.questions.length ? editing.questions.map((q) => ({ ...q, options: [...q.options] })) : [blankQuestion()],
+        classIds: editing.classIds || ["Class 3"],
       });
       setError("");
     } else {
-      setForm({ title: "", description: "", questions: [blankQuestion()] });
+      setForm({ title: "", description: "", questions: [blankQuestion()], classIds: ["Class 3"] });
       setError("");
     }
   }, [open, editing]);
@@ -146,6 +151,7 @@ function QuizDialog({
         options: q.options.map((o) => o.trim()),
         correctAnswerIndex: q.correctAnswerIndex,
       })),
+      classIds: form.classIds,
     };
 
     setSaving(true);
@@ -234,6 +240,13 @@ function QuizDialog({
                   onChange={(v) => setForm((p) => ({ ...p, description: v }))}
                   minHeight={100}
                   placeholder="Short quiz intro..."
+                />
+              </div>
+              <div>
+                <label className="admin-label">Assigned Classes</label>
+                <ClassMultiSelect 
+                  selectedIds={form.classIds} 
+                  onChange={(ids) => setForm((p) => ({ ...p, classIds: ids }))} 
                 />
               </div>
             </div>
@@ -490,6 +503,7 @@ export function QuizzesView() {
               <tr>
                 <th>Title</th>
                 <th>Questions</th>
+                <th>Classes</th>
                 <th>Description</th>
                 <th>Created</th>
                 <th style={{ textAlign: "right" }}>Actions</th>
@@ -500,6 +514,17 @@ export function QuizzesView() {
                 <tr key={quiz._id}>
                   <td style={{ fontWeight: 700, color: "var(--foreground)" }}>{quiz.title}</td>
                   <td><span className="admin-badge admin-badge-blue">{quiz.questions.length} Questions</span></td>
+                  <td>
+                    {quiz.classIds && quiz.classIds.length > 0 ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                        {quiz.classIds.map((cls) => (
+                          <span key={cls} className="admin-badge admin-badge-blue" style={{ fontSize: "0.65rem", padding: "0.1rem 0.3rem" }}>{cls}</span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>—</span>
+                    )}
+                  </td>
                   <td style={{ color: "var(--muted)", maxWidth: 300 }}>
                     <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {quiz.description || <span style={{ fontStyle: "italic", opacity: 0.5 }}>No description</span>}

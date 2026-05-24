@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 class AdminAuthError extends Error {
   code: "AUTH_REQUIRED" | "UNAUTHORIZED";
@@ -85,6 +85,22 @@ export async function fetchAdmin(path: string, init?: RequestInit) {
   }
 
   return response;
+}
+export async function apiFetch(path: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Content-Type") && init?.body && typeof init.body === "string") {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const response = await fetchAdmin(path, { ...init, headers });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: response.statusText }));
+    throw new Error(error.message || response.statusText);
+  }
+  
+  // if 204 No Content, return null
+  if (response.status === 204) return null;
+  return response.json();
 }
 
 export { API_BASE_URL, AdminAuthError };

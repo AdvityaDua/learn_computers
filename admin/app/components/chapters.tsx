@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { AdminAuthError, fetchAdmin } from "../lib/admin-api";
 import { MarkdownEditor } from "./markdown-editor";
+import { ClassMultiSelect } from "./class-multi-select";
 
 type LessonItemType = "video" | "quiz" | "assignment" | "activity";
 
@@ -41,6 +42,7 @@ type Chapter = {
   descriptionFilePath?: string;
   coverImageFilePath?: string;
   lessons: ChapterLesson[];
+  classIds?: string[];
 };
 
 type LessonEditorState = {
@@ -121,6 +123,7 @@ export function ChaptersView() {
   const [editingChapterObj, setEditingChapterObj] = useState<Chapter | null>(null);
   const [chapterTitle, setChapterTitle] = useState("");
   const [chapterDescription, setChapterDescription] = useState("");
+  const [chapterClassIds, setChapterClassIds] = useState<string[]>(["Class 3"]);
 
   const [showLessonCreateDialog, setShowLessonCreateDialog] = useState(false);
   const [lessonCreateChapterId, setLessonCreateChapterId] = useState<string | null>(null);
@@ -259,6 +262,7 @@ export function ChaptersView() {
     setEditingChapterObj(null);
     setChapterTitle("");
     setChapterDescription("");
+    setChapterClassIds(["Class 3"]);
     setShowChapterDialog(true);
   };
   
@@ -266,6 +270,7 @@ export function ChaptersView() {
     setEditingChapterObj(chapter);
     setChapterTitle(chapter.title);
     setChapterDescription(chapter.description);
+    setChapterClassIds(chapter.classIds || ["Class 3"]);
     setShowChapterDialog(true);
   };
   
@@ -276,6 +281,7 @@ export function ChaptersView() {
       const payload = {
         title: chapterTitle.trim(),
         description: chapterDescription,
+        classIds: chapterClassIds,
       };
       
       const res = editingChapterObj
@@ -568,6 +574,13 @@ export function ChaptersView() {
                     <p style={{ margin: "0.2rem 0 0", fontSize: "0.75rem", color: "var(--muted)", fontWeight: 500 }}>
                       {chapter.lessons.length} lessons · {chapter.lessons.reduce((acc, l) => acc + l.items.length, 0)} items
                     </p>
+                    {chapter.classIds && chapter.classIds.length > 0 && (
+                      <div style={{ marginTop: "0.25rem", display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                        {chapter.classIds.map((cls) => (
+                          <span key={cls} className="admin-badge admin-badge-blue" style={{ fontSize: "0.65rem", padding: "0.1rem 0.3rem" }}>{cls}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
@@ -679,6 +692,10 @@ export function ChaptersView() {
                   maxHeight={400}
                   placeholder="# Chapter overview\n\nDescribe what this chapter covers..."
                 />
+              </div>
+              <div>
+                <label className="admin-label">Assigned Classes</label>
+                <ClassMultiSelect selectedIds={chapterClassIds} onChange={setChapterClassIds} />
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
                 <button className="admin-btn admin-btn-ghost" onClick={() => setShowChapterDialog(false)}><X size={14} /> Cancel</button>
