@@ -244,6 +244,12 @@ export class ProgressController {
     return this.progressService.getTeacherDeadlines(req.user.sub, classId);
   }
 
+  @Get('student/deadlines')
+  @Roles(UserRole.Student)
+  getStudentDeadlines(@Req() req: Request & { user: AuthUser }) {
+    return this.progressService.getStudentDeadlines(req.user.sub);
+  }
+
   // ── Curriculum Tree ───────────────────────────────────────────────
 
   @Get('curriculum-tree')

@@ -1620,6 +1620,21 @@ export class ProgressService {
 
   // ── Curriculum Tree (for teacher view) ──────────────────────────────────
 
+  async getStudentDeadlines(userId: string) {
+    this.ensureObjectId(userId, 'Invalid user id');
+    const user = await this.userModel.findById(userId).select('classIds').lean();
+    if (!user || !user.classIds || user.classIds.length === 0) {
+      return [];
+    }
+    const classId = user.classIds[0];
+    const deadlines = await this.teacherDeadlineModel.find({ classId }).lean();
+    return deadlines.map((d: any) => ({
+      taskId: String(d.taskId),
+      taskType: d.taskType,
+      dueDate: d.dueDate,
+    }));
+  }
+
   async getCurriculumTree() {
     const chapters = await this.chapterModel.find().sort({ order: 1, createdAt: 1 }).lean();
 
