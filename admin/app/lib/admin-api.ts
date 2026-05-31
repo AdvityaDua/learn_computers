@@ -103,4 +103,4 @@ export async function apiFetch(path: string, init?: RequestInit) {
   return response.json();
 }
 
-export { API_BASE_URL, AdminAuthError };
+export { AdminAuthError };
