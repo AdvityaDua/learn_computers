@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -20,6 +21,7 @@ import { UserRole } from '../common/constants/roles.enum';
 import { ChaptersService } from './chapters.service';
 import { AuthUser } from '../common/types/auth-user.type';
 import { CreateChapterDto } from './dto/create-chapter.dto';
+import { UpdateChapterDto } from './dto/update-chapter.dto';
 import { CreateChapterLessonDto } from './dto/create-chapter-lesson.dto';
 import { ReorderChapterLessonsDto } from './dto/reorder-chapter-lessons.dto';
 import { UpdateChapterLessonDto } from './dto/update-chapter-lesson.dto';
@@ -39,8 +41,14 @@ export class ChaptersController {
   }
 
   @Get()
-  findAll() {
-    return this.chaptersService.findAll();
+  findAll(@Query('subjectId') subjectId?: string) {
+    return this.chaptersService.findAll(subjectId);
+  }
+
+  @Patch(':id')
+  @Roles(UserRole.Admin)
+  update(@Param('id') id: string, @Body() dto: UpdateChapterDto) {
+    return this.chaptersService.update(id, dto);
   }
 
   @Get(':id')

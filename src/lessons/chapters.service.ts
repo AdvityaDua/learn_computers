@@ -23,6 +23,7 @@ import {
   ActivityDocument,
 } from '../activities/schemas/activity.schema';
 import { CreateChapterDto } from './dto/create-chapter.dto';
+import { UpdateChapterDto } from './dto/update-chapter.dto';
 import { CreateChapterLessonDto } from './dto/create-chapter-lesson.dto';
 import {
   ChapterLessonItemDto,
@@ -60,19 +61,49 @@ export class ChaptersService {
       description: chapterDescription,
       descriptionFilePath: chapterDescriptionFilePath,
       lessons: [],
+      classIds: dto.classIds ?? ['Class 3'],
+      subjectId: dto.subjectId ? new Types.ObjectId(dto.subjectId) : undefined,
       createdBy: new Types.ObjectId(userId),
     });
     return created.save();
   }
 
-  async findAll() {
+  async findAll(subjectId?: string) {
+    const filter: Record<string, unknown> = {};
+    if (subjectId && Types.ObjectId.isValid(subjectId)) {
+      filter.subjectId = new Types.ObjectId(subjectId);
+    }
     const chapters = await this.chapterModel
-      .find()
+      .find(filter)
       .sort({ createdAt: 1 })
       .lean();
     return Promise.all(
       chapters.map((chapter) => this.decorateChapterForResponse(chapter)),
     );
+  }
+
+  async update(id: string, dto: UpdateChapterDto): Promise<ChapterDocument> {
+    this.ensureObjectId(id, 'Invalid chapter id format');
+    const setFields: Record<string, unknown> = {};
+    if (dto.title !== undefined) setFields.title = dto.title;
+    if (dto.classIds !== undefined) setFields.classIds = dto.classIds;
+    if (dto.subjectId !== undefined) {
+      setFields.subjectId = dto.subjectId
+        ? new Types.ObjectId(dto.subjectId)
+        : null;
+    }
+    if (dto.description !== undefined) {
+      setFields.description = dto.description;
+      setFields.descriptionFilePath = await this.writeMarkdownFile(
+        dto.description,
+        'chapter-description',
+      );
+    }
+    const updated = await this.chapterModel
+      .findByIdAndUpdate(id, { $set: setFields }, { new: true })
+      .lean();
+    if (!updated) throw new NotFoundException('Chapter not found');
+    return this.decorateChapterForResponse(updated) as unknown as ChapterDocument;
   }
 
   async findOne(id: string) {

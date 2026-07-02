@@ -1,9 +1,10 @@
 import { IsArray, IsMongoId, IsOptional, IsString, MinLength } from 'class-validator';
 
-export class CreateChapterDto {
+export class UpdateChapterDto {
+  @IsOptional()
   @IsString()
   @MinLength(2)
-  title: string;
+  title?: string;
 
   @IsOptional()
   @IsString()

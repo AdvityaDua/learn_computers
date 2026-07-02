@@ -68,6 +68,9 @@ export class Chapter {
 
   @Prop({ type: [String], default: ['Class 3'] })
   classIds: string[];
+
+  @Prop({ type: Types.ObjectId, ref: 'Subject', required: false })
+  subjectId?: Types.ObjectId;
 }
 
 export type ChapterDocument = HydratedDocument<Chapter>;

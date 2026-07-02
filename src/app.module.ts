@@ -10,17 +10,17 @@ import { AssignmentsModule } from './assignments/assignments.module';
 import { LessonsModule } from './lessons/lessons.module';
 import { MaterialsModule } from './materials/materials.module';
 import { ProgressModule } from './progress/progress.module';
-
 import { ConfigModule, ConfigService } from '@nestjs/config';
-
 import { SchoolsModule } from './schools/schools.module';
 import { ClassesModule } from './classes/classes.module';
+import { AttendanceModule } from './attendance/attendance.module';
+import { StudentReviewsModule } from './student-reviews/student-reviews.module';
+import { TeacherWorkModule } from './teacher-work/teacher-work.module';
+import { SubjectsModule } from './subjects/subjects.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+    ConfigModule.forRoot({ isGlobal: true }),
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
@@ -37,6 +37,10 @@ import { ClassesModule } from './classes/classes.module';
     ProgressModule,
     SchoolsModule,
     ClassesModule,
+    AttendanceModule,
+    StudentReviewsModule,
+    TeacherWorkModule,
+    SubjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

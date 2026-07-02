@@ -874,6 +874,7 @@ export class ProgressService {
 
     return {
       completionPercentage,
+      totalLessons,
       completedLessons,
       quizAttempts,
       submissions,
