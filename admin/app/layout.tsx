@@ -6,8 +6,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Admin Console — Learn Computers",
-  description: "Admin panel for managing chapters, lessons, students and uploads.",
+  title: "Admin Console — Bagat Puran Singh School for Deaf",
+  description: "Admin panel for Bagat Puran Singh School for Deaf — manage chapters, lessons, students and uploads.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

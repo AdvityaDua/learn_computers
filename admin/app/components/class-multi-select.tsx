@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { apiFetch } from "../lib/admin-api";
+import React from "react";
+import { useAdminData } from "../contexts/admin-data-context";
 
 export function ClassMultiSelect({
   selectedIds,
@@ -8,20 +8,7 @@ export function ClassMultiSelect({
   selectedIds: string[];
   onChange: (ids: string[]) => void;
 }) {
-  const [classes, setClasses] = useState<{ _id: string; name: string }[]>([]);
-
-  useEffect(() => {
-    apiFetch("/classes?limit=100")
-      .then((res) => {
-        const items = res.items || [];
-        // Ensure "Class 3" is always there as an option, even if not explicitly in DB
-        if (!items.find((c: any) => c.name === "Class 3")) {
-          items.unshift({ _id: "class-3-default", name: "Class 3" });
-        }
-        setClasses(items);
-      })
-      .catch(console.error);
-  }, []);
+  const { classes } = useAdminData();
 
   const toggleClass = (name: string) => {
     if (selectedIds.includes(name)) {
@@ -50,9 +37,10 @@ export function ClassMultiSelect({
               border: isSelected ? "1px solid var(--admin-accent)" : "1px solid var(--border)",
               background: isSelected ? "var(--admin-accent-soft)" : "var(--surface)",
               color: isSelected ? "var(--admin-accent)" : "var(--foreground)",
+              fontFamily: "inherit",
             }}
           >
-            {c.name} {c.name === "Class 3" && <span style={{ opacity: 0.6, fontSize: "0.7rem", marginLeft: "0.25rem" }}>(Default)</span>}
+            {c.name}
           </button>
         );
       })}

@@ -5,11 +5,13 @@ import Markdown from "react-markdown";
 import {
   BookOpen, Plus, Trash2, Pencil, RotateCcw, GripVertical,
   Video, HelpCircle, ClipboardList, CheckSquare, X, Save,
-  ChevronDown, ChevronUp, ChevronRight, Image,
+  ChevronDown, ChevronUp, ChevronRight, Image, BookMarked,
 } from "lucide-react";
 import { AdminAuthError, fetchAdmin } from "../lib/admin-api";
 import { MarkdownEditor } from "./markdown-editor";
 import { ClassMultiSelect } from "./class-multi-select";
+import { SubjectIcon } from "./subject-icon";
+import { useAdminData } from "../contexts/admin-data-context";
 
 type LessonItemType = "video" | "quiz" | "assignment" | "activity";
 
@@ -43,6 +45,7 @@ type Chapter = {
   coverImageFilePath?: string;
   lessons: ChapterLesson[];
   classIds?: string[];
+  subjectId?: string;
 };
 
 type LessonEditorState = {
@@ -88,8 +91,8 @@ function CollapsibleMarkdown({ content }: { content: string }) {
         <button
           onClick={() => setExpanded((p) => !p)}
           className="admin-btn admin-btn-ghost"
-          style={{ 
-            padding: "0.25rem 0", fontSize: "0.75rem", fontWeight: 700, 
+          style={{
+            padding: "0.25rem 0", fontSize: "0.75rem", fontWeight: 700,
             gap: "0.3rem", color: "var(--admin-accent-text)",
             marginTop: "0.5rem"
           }}
@@ -106,7 +109,10 @@ function sortByOrder<T extends { order: number }>(arr: T[]): T[] {
   return [...arr].sort((a, b) => a.order - b.order);
 }
 
-export function ChaptersView() {
+export function ChaptersView({ onNavigateToSubjects }: { onNavigateToSubjects?: () => void } = {}) {
+  // Shared data from context — classes and subjects loaded once at shell level
+  const { classes, allSubjects, dataLoading } = useAdminData();
+
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [videos, setVideos] = useState<Option[]>([]);
   const [quizzes, setQuizzes] = useState<Option[]>([]);
@@ -124,6 +130,7 @@ export function ChaptersView() {
   const [chapterTitle, setChapterTitle] = useState("");
   const [chapterDescription, setChapterDescription] = useState("");
   const [chapterClassIds, setChapterClassIds] = useState<string[]>(["Class 3"]);
+  const [chapterSubjectId, setChapterSubjectId] = useState<string>("");
 
   const [showLessonCreateDialog, setShowLessonCreateDialog] = useState(false);
   const [lessonCreateChapterId, setLessonCreateChapterId] = useState<string | null>(null);
@@ -139,9 +146,37 @@ export function ChaptersView() {
   const [addItemType, setAddItemType] = useState<LessonItemType>("video");
   const [addItemRefId, setAddItemRefId] = useState("");
 
+  // Class + Subject filter state
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [coverTarget, setCoverTarget] = useState<{ chapterId: string; lessonId?: string } | null>(null);
   const [coverUploading, setCoverUploading] = useState(false);
+
+  // Derived: subjects visible for the selected class
+  const subjectsForClass = useMemo(
+    () => selectedClassId ? allSubjects.filter((s) => s.classId === selectedClassId) : allSubjects,
+    [allSubjects, selectedClassId],
+  );
+
+  // Derived: selected subject object (for icon/color in filter bar)
+  const selectedSubjectObj = useMemo(
+    () => (selectedSubjectId ? allSubjects.find((s) => s._id === selectedSubjectId) ?? null : null),
+    [allSubjects, selectedSubjectId],
+  );
+
+  // Derived: which chapters to show
+  const visibleChapters = useMemo(() => {
+    if (selectedSubjectId) {
+      return chapters.filter((c) => c.subjectId === selectedSubjectId);
+    }
+    if (selectedClassId) {
+      const subjectIdsInClass = new Set(allSubjects.filter((s) => s.classId === selectedClassId).map((s) => s._id));
+      return chapters.filter((c) => c.subjectId && subjectIdsInClass.has(c.subjectId));
+    }
+    return chapters;
+  }, [chapters, selectedSubjectId, selectedClassId, allSubjects]);
 
   const triggerCoverUpload = (chapterId: string, lessonId?: string) => {
     setCoverTarget({ chapterId, lessonId });
@@ -258,32 +293,40 @@ export function ChaptersView() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Reset subject filter when class changes
+  useEffect(() => {
+    setSelectedSubjectId(null);
+  }, [selectedClassId]);
+
   const openCreateChapterDialog = () => {
     setEditingChapterObj(null);
     setChapterTitle("");
     setChapterDescription("");
     setChapterClassIds(["Class 3"]);
+    setChapterSubjectId(selectedSubjectId ?? "");
     setShowChapterDialog(true);
   };
-  
+
   const openEditChapterDialog = (chapter: Chapter) => {
     setEditingChapterObj(chapter);
     setChapterTitle(chapter.title);
     setChapterDescription(chapter.description);
     setChapterClassIds(chapter.classIds || ["Class 3"]);
+    setChapterSubjectId(chapter.subjectId ?? "");
     setShowChapterDialog(true);
   };
-  
+
   const saveChapter = async () => {
     if (!chapterTitle.trim()) return;
-  
+
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         title: chapterTitle.trim(),
         description: chapterDescription,
         classIds: chapterClassIds,
+        ...(chapterSubjectId ? { subjectId: chapterSubjectId } : {}),
       };
-      
+
       const res = editingChapterObj
         ? await fetchAdmin(`/chapters/${editingChapterObj._id}`, {
             method: "PATCH",
@@ -295,7 +338,7 @@ export function ChaptersView() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
-  
+
       if (res.ok) {
         await fetchAll();
         setShowChapterDialog(false);
@@ -503,16 +546,17 @@ export function ChaptersView() {
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem 0" }}>
-      <div style={{ 
-        display: "flex", justifyContent: "space-between", alignItems: "center", 
-        gap: "1.5rem", marginBottom: "2rem", padding: "1.5rem", 
+      {/* ── Page header ──────────────────────────────────────── */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        gap: "1.5rem", marginBottom: "1.25rem", padding: "1.5rem",
         background: "var(--surface)", borderRadius: "1rem", border: "1px solid var(--border)",
         boxShadow: "0 4px 20px rgba(0,0,0,0.03)"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
-          <div style={{ 
-            width: 52, height: 52, borderRadius: "1rem", 
-            background: "var(--admin-accent)", 
+          <div style={{
+            width: 52, height: 52, borderRadius: "1rem",
+            background: "var(--admin-accent)",
             display: "grid", placeItems: "center", color: "#fff",
             boxShadow: "0 4px 12px var(--admin-accent-ring)"
           }}>
@@ -521,14 +565,181 @@ export function ChaptersView() {
           <div>
             <h1 style={{ margin: 0, fontSize: "1.6rem", fontWeight: 900, letterSpacing: "-0.02em" }}>Curriculum Builder</h1>
             <p style={{ margin: "0.25rem 0 0", color: "var(--muted)", fontSize: "0.875rem", fontWeight: 500 }}>
-              Design your course structure. Manage chapters, lessons, and content items.
+              Design your course structure. Chapters are organised by Class → Subject.
             </p>
           </div>
         </div>
         <div style={{ display: "flex", gap: "0.75rem" }}>
+          {onNavigateToSubjects && (
+            <button className="admin-btn admin-btn-secondary" onClick={onNavigateToSubjects} style={{ gap: "0.45rem" }}>
+              <BookMarked size={15} /> Manage Subjects
+            </button>
+          )}
           <button className="admin-btn admin-btn-secondary" onClick={() => void fetchAll()}><RotateCcw size={16} /> Refresh</button>
           <button className="admin-btn admin-btn-primary" style={{ padding: "0.6rem 1.25rem", fontSize: "0.875rem" }} onClick={openCreateChapterDialog}><Plus size={18} /> New Chapter</button>
         </div>
+      </div>
+
+      {/* ── Filter breadcrumb ──────────────────────────────────── */}
+      <style>{`
+        @keyframes filterSkeleton {
+          0%,100% { opacity: 0.45; }
+          50%      { opacity: 0.9; }
+        }
+        .filter-skeleton-block {
+          background: var(--surface-soft);
+          border-radius: 0.375rem;
+          animation: filterSkeleton 1.4s ease-in-out infinite;
+        }
+        .filter-segment:hover { background: var(--surface-soft) !important; }
+        .filter-segment label { display: block; cursor: pointer; }
+        .filter-native-select {
+          border: none; background: transparent;
+          font-weight: 700; font-size: 0.9375rem;
+          cursor: pointer; outline: none;
+          -webkit-appearance: none; appearance: none;
+          font-family: inherit; padding: 0; width: 100%;
+        }
+      `}</style>
+
+      <div style={{ marginBottom: "1.25rem" }}>
+        {dataLoading ? (
+          /* ── Skeleton ── */
+          <div style={{
+            display: "flex", height: 68,
+            background: "var(--surface)", border: "1px solid var(--border)",
+            borderRadius: "0.875rem", overflow: "hidden",
+          }}>
+            {[220, undefined].map((w, i) => (
+              <div key={i} style={{
+                flex: w ? `0 0 ${w}px` : 1,
+                borderRight: i === 0 ? "1px solid var(--border)" : undefined,
+                padding: "0.875rem 1.25rem",
+                display: "flex", flexDirection: "column", gap: "0.5rem", justifyContent: "center",
+              }}>
+                <div className="filter-skeleton-block" style={{ height: 8, width: "38%" }} />
+                <div className="filter-skeleton-block" style={{ height: 14, width: i === 0 ? "55%" : "45%", animationDelay: "0.15s" }} />
+              </div>
+            ))}
+            <div style={{ flex: "0 0 130px", borderLeft: "1px solid var(--border)", padding: "0.875rem 1.25rem", display: "flex", flexDirection: "column", gap: "0.5rem", justifyContent: "center" }}>
+              <div className="filter-skeleton-block" style={{ height: 10, width: "60%", animationDelay: "0.3s" }} />
+            </div>
+          </div>
+        ) : (
+          /* ── Actual bar ── */
+          <div style={{
+            display: "flex", alignItems: "stretch",
+            background: "var(--surface)", border: "1px solid var(--border)",
+            borderRadius: "0.875rem", overflow: "hidden",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+          }}>
+
+            {/* Class segment */}
+            <div
+              className="filter-segment"
+              style={{
+                flex: "0 0 220px", borderRight: "1px solid var(--border)",
+                padding: "0.75rem 1.25rem", cursor: "pointer",
+                background: selectedClassId ? "var(--admin-accent-soft)" : "transparent",
+                transition: "background 0.15s",
+              }}
+            >
+              <p style={{ margin: "0 0 0.2rem", fontSize: "0.6rem", fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                Class
+              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                <select
+                  className="filter-native-select"
+                  value={selectedClassId ?? ""}
+                  onChange={(e) => setSelectedClassId(e.target.value || null)}
+                  style={{ color: selectedClassId ? "var(--admin-accent-text)" : "var(--foreground)" }}
+                >
+                  <option value="">All Classes</option>
+                  {classes.map((c) => (
+                    <option key={c._id} value={c._id}>
+                      {c.name}{c.grade ? ` · ${c.grade}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={13} style={{ color: "var(--muted)", flexShrink: 0, pointerEvents: "none" }} />
+              </div>
+            </div>
+
+            {/* Divider arrow */}
+            <div style={{ display: "flex", alignItems: "center", padding: "0 0.5rem", color: "var(--border)", flexShrink: 0 }}>
+              <ChevronRight size={18} />
+            </div>
+
+            {/* Subject segment */}
+            <div
+              className="filter-segment"
+              style={{
+                flex: 1, padding: "0.75rem 1.25rem", cursor: "pointer",
+                background: selectedSubjectId ? "var(--admin-accent-soft)" : "transparent",
+                transition: "background 0.15s",
+              }}
+            >
+              <p style={{ margin: "0 0 0.2rem", fontSize: "0.6rem", fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                Subject
+              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                {selectedSubjectObj && (
+                  <SubjectIcon
+                    name={selectedSubjectObj.icon}
+                    size={15}
+                    color={selectedSubjectObj.color}
+                  />
+                )}
+                <select
+                  className="filter-native-select"
+                  value={selectedSubjectId ?? ""}
+                  onChange={(e) => setSelectedSubjectId(e.target.value || null)}
+                  style={{ color: selectedSubjectId ? "var(--admin-accent-text)" : "var(--foreground)" }}
+                >
+                  <option value="">All Subjects</option>
+                  {subjectsForClass.map((s) => (
+                    <option key={s._id} value={s._id}>{s.name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={13} style={{ color: "var(--muted)", flexShrink: 0, pointerEvents: "none" }} />
+              </div>
+            </div>
+
+            {/* Right: clear + chapter count */}
+            <div style={{ display: "flex", alignItems: "center", borderLeft: "1px solid var(--border)", flexShrink: 0 }}>
+              {(selectedClassId || selectedSubjectId) && (
+                <button
+                  onClick={() => { setSelectedClassId(null); setSelectedSubjectId(null); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.35rem",
+                    height: "100%", padding: "0 1rem",
+                    background: "transparent", border: "none",
+                    borderRight: "1px solid var(--border)",
+                    color: "var(--muted)", fontSize: "0.75rem", fontWeight: 600,
+                    cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                    transition: "color 0.15s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--admin-danger)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--muted)"; }}
+                >
+                  <X size={12} /> Clear
+                </button>
+              )}
+              <div style={{
+                padding: "0 1.25rem",
+                display: "flex", flexDirection: "column", alignItems: "flex-end", justifyContent: "center",
+                gap: "0.1rem",
+              }}>
+                <span style={{ fontSize: "1.0625rem", fontWeight: 800, color: "var(--foreground)", lineHeight: 1 }}>
+                  {visibleChapters.length}
+                </span>
+                <span style={{ fontSize: "0.6875rem", color: "var(--muted)", fontWeight: 500, whiteSpace: "nowrap" }}>
+                  of {chapters.length} chapter{chapters.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -538,141 +749,162 @@ export function ChaptersView() {
       )}
 
       {loading ? (
-        <div className="admin-card" style={{ padding: "2.5rem", textAlign: "center", color: "var(--muted)" }}>Loading curriculum...</div>
-      ) : chapters.length === 0 ? (
-        <div className="admin-card" style={{ padding: "2.5rem", textAlign: "center", color: "var(--muted)" }}>No chapters yet.</div>
+        <div className="admin-card" style={{ padding: "2.5rem", textAlign: "center", color: "var(--muted)" }}>Loading curriculum…</div>
+      ) : visibleChapters.length === 0 ? (
+        <div className="admin-card" style={{ padding: "2.5rem", textAlign: "center", color: "var(--muted)", borderStyle: "dashed" }}>
+          {chapters.length === 0
+            ? "No chapters yet. Create your first chapter above."
+            : "No chapters match the selected class / subject filter."}
+        </div>
       ) : (
         <div style={{ display: "grid", gap: "0.75rem" }}>
           {/* Hidden cover image input */}
           <input ref={coverInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => void handleCoverFileChange(e)} />
-          {chapters.map((chapter, chapterIdx) => (
-            <div key={chapter._id} className="admin-card" style={{ overflow: "hidden" }}>
-              <div
-                style={{
-                  padding: "1.25rem 1.5rem",
-                  background: expandedChapterId === chapter._id ? "var(--admin-accent-soft)" : "var(--surface-soft)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  cursor: "pointer",
-                  transition: "background 0.2s",
-                }}
-                onClick={() => setExpandedChapterId((prev) => (prev === chapter._id ? null : chapter._id))}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                  <div style={{ 
-                    width: 40, height: 40, borderRadius: "0.75rem", 
-                    background: "var(--surface)", display: "grid", placeItems: "center",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.04)", border: "1px solid var(--border)"
-                  }}>
-                    <BookOpen size={20} style={{ color: "var(--admin-accent)" }} />
-                  </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800 }}>
-                      Chapter {chapterIdx + 1}: {chapter.title}
-                    </h3>
-                    <p style={{ margin: "0.2rem 0 0", fontSize: "0.75rem", color: "var(--muted)", fontWeight: 500 }}>
-                      {chapter.lessons.length} lessons · {chapter.lessons.reduce((acc, l) => acc + l.items.length, 0)} items
-                    </p>
-                    {chapter.classIds && chapter.classIds.length > 0 && (
-                      <div style={{ marginTop: "0.25rem", display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
-                        {chapter.classIds.map((cls) => (
+          {visibleChapters.map((chapter, chapterIdx) => {
+            const chapterSubject = allSubjects.find((s) => s._id === chapter.subjectId);
+            return (
+              <div key={chapter._id} className="admin-card" style={{ overflow: "hidden" }}>
+                <div
+                  style={{
+                    padding: "1.25rem 1.5rem",
+                    background: expandedChapterId === chapter._id ? "var(--admin-accent-soft)" : "var(--surface-soft)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    cursor: "pointer",
+                    transition: "background 0.2s",
+                  }}
+                  onClick={() => setExpandedChapterId((prev) => (prev === chapter._id ? null : chapter._id))}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                    <div style={{
+                      width: 40, height: 40, borderRadius: "0.75rem",
+                      background: chapterSubject ? `${chapterSubject.color}20` : "var(--surface)",
+                      display: "grid", placeItems: "center",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.04)", border: "1px solid var(--border)",
+                    }}>
+                      {chapterSubject
+                        ? <SubjectIcon name={chapterSubject.icon} size={20} color={chapterSubject.color} />
+                        : <BookOpen size={20} style={{ color: "var(--admin-accent)" }} />
+                      }
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800 }}>
+                        Chapter {chapterIdx + 1}: {chapter.title}
+                      </h3>
+                      <p style={{ margin: "0.2rem 0 0", fontSize: "0.75rem", color: "var(--muted)", fontWeight: 500 }}>
+                        {chapter.lessons.length} lessons · {chapter.lessons.reduce((acc, l) => acc + l.items.length, 0)} items
+                      </p>
+                      <div style={{ marginTop: "0.3rem", display: "flex", gap: "0.3rem", flexWrap: "wrap", alignItems: "center" }}>
+                        {chapterSubject && (
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: "0.3rem",
+                            background: `${chapterSubject.color}18`, color: chapterSubject.color,
+                            fontSize: "0.68rem", fontWeight: 700, padding: "0.15rem 0.5rem",
+                            borderRadius: "99px", border: `1px solid ${chapterSubject.color}30`,
+                          }}>
+                            <SubjectIcon name={chapterSubject.icon} size={11} color={chapterSubject.color} />
+                            {chapterSubject.name}
+                          </span>
+                        )}
+                        {chapter.classIds?.map((cls) => (
                           <span key={cls} className="admin-badge admin-badge-blue" style={{ fontSize: "0.65rem", padding: "0.1rem 0.3rem" }}>{cls}</span>
                         ))}
                       </div>
-                    )}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
+                    <button className="admin-btn admin-btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} onClick={(e) => { e.stopPropagation(); openEditChapterDialog(chapter); }}><Pencil size={14} /> Edit</button>
+                    <button className="admin-btn admin-btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} title={chapter.coverImageFilePath ? "Change cover" : "Add cover image"} onClick={(e) => { e.stopPropagation(); triggerCoverUpload(chapter._id); }} disabled={coverUploading}>
+                      {chapter.coverImageFilePath ? <img src={`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001"}${chapter.coverImageFilePath}`} alt="" style={{ width: 14, height: 14, borderRadius: 3, objectFit: "cover" }} /> : <Image size={14} />}
+                      {coverUploading && coverTarget?.chapterId === chapter._id && !coverTarget?.lessonId ? "Uploading…" : "Cover"}
+                    </button>
+                    <button className="admin-btn admin-btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} onClick={(e) => { e.stopPropagation(); openCreateLessonDialog(chapter._id); }}><Plus size={14} /> Add Lesson</button>
+                    <button className="admin-btn admin-btn-danger" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} onClick={(e) => { e.stopPropagation(); void removeChapter(chapter._id); }}><Trash2 size={14} /> Delete</button>
+                    <div style={{ marginLeft: "0.5rem", width: 32, height: 32, borderRadius: "50%", background: "var(--surface)", display: "grid", placeItems: "center", border: "1px solid var(--border)" }}>
+                      {expandedChapterId === chapter._id ? <ChevronUp size={18} style={{ color: "var(--muted)" }} /> : <ChevronDown size={18} style={{ color: "var(--muted)" }} />}
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-                  <button className="admin-btn admin-btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} onClick={(e) => { e.stopPropagation(); openEditChapterDialog(chapter); }}><Pencil size={14} /> Edit</button>
-                  <button className="admin-btn admin-btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} title={chapter.coverImageFilePath ? "Change cover" : "Add cover image"} onClick={(e) => { e.stopPropagation(); triggerCoverUpload(chapter._id); }} disabled={coverUploading}>
-                    {chapter.coverImageFilePath ? <img src={`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001"}${chapter.coverImageFilePath}`} alt="" style={{ width: 14, height: 14, borderRadius: 3, objectFit: "cover" }} /> : <Image size={14} />}
-                    {coverUploading && coverTarget?.chapterId === chapter._id && !coverTarget?.lessonId ? "Uploading…" : "Cover"}
-                  </button>
-                  <button className="admin-btn admin-btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} onClick={(e) => { e.stopPropagation(); openCreateLessonDialog(chapter._id); }}><Plus size={14} /> Add Lesson</button>
-                  <button className="admin-btn admin-btn-danger" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} onClick={(e) => { e.stopPropagation(); void removeChapter(chapter._id); }}><Trash2 size={14} /> Delete</button>
-                  <div style={{ marginLeft: "0.5rem", width: 32, height: 32, borderRadius: "50%", background: "var(--surface)", display: "grid", placeItems: "center", border: "1px solid var(--border)" }}>
-                    {expandedChapterId === chapter._id ? <ChevronUp size={18} style={{ color: "var(--muted)" }} /> : <ChevronDown size={18} style={{ color: "var(--muted)" }} />}
-                  </div>
-                </div>
-              </div>
 
-              {expandedChapterId === chapter._id && (
-                <div style={{ padding: "1rem" }}>
-                  <div style={{ margin: "0 0 0.8rem", fontSize: "0.82rem" }}>
-                    <CollapsibleMarkdown content={chapter.description} />
-                  </div>
+                {expandedChapterId === chapter._id && (
+                  <div style={{ padding: "1rem" }}>
+                    <div style={{ margin: "0 0 0.8rem", fontSize: "0.82rem" }}>
+                      <CollapsibleMarkdown content={chapter.description} />
+                    </div>
 
-                  <div style={{ display: "grid", gap: "0.5rem" }}>
-                    {sortByOrder(chapter.lessons).map((lesson, idx) => (
-                      <div
-                        key={lesson._id}
-                        draggable
-                        onDragStart={() => setDragLesson({ chapterId: chapter._id, lessonId: lesson._id })}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => {
-                          if (!dragLesson || dragLesson.chapterId !== chapter._id) return;
-                          void reorderLessons(chapter._id, dragLesson.lessonId, lesson._id);
-                          setDragLesson(null);
-                        }}
-                        style={{
-                          borderBottom: idx === chapter.lessons.length - 1 ? "none" : "1px solid var(--border)",
-                          padding: "1rem 0.5rem",
-                          background: "transparent",
-                          cursor: "grab",
-                          transition: "all 0.2s",
-                        }}
-                        className="hover:bg-surface-soft"
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "center" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "1rem", minWidth: 0 }}>
-                            <div style={{ color: "var(--muted)", flexShrink: 0, display: "grid", placeItems: "center" }}>
-                              <GripVertical size={18} />
-                            </div>
-                            <div style={{ minWidth: 0 }}>
-                              <p style={{ margin: 0, fontWeight: 700, fontSize: "0.92rem", color: "var(--foreground)" }}>
-                                Lesson {idx + 1}: {lesson.title}
-                              </p>
-                              <div style={{ margin: "0.3rem 0 0", display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                                <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "var(--muted)", fontSize: "0.75rem", fontWeight: 500 }}>
-                                  <Video size={13} /> {lesson.items.filter(i => i.type === 'video').length}
-                                </span>
-                                <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "var(--muted)", fontSize: "0.75rem", fontWeight: 500 }}>
-                                  <HelpCircle size={13} /> {lesson.items.filter(i => i.type === 'quiz').length}
-                                </span>
-                                <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "var(--muted)", fontSize: "0.75rem", fontWeight: 500 }}>
-                                  <ClipboardList size={13} /> {lesson.items.filter(i => i.type === 'assignment').length}
-                                </span>
-                                <span style={{ width: 1, height: 12, background: "var(--border)" }} />
-                                <span style={{ color: "var(--admin-accent-text)", fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.02em" }}>
-                                  {lesson.items.length} items total
-                                </span>
+                    <div style={{ display: "grid", gap: "0.5rem" }}>
+                      {sortByOrder(chapter.lessons).map((lesson, idx) => (
+                        <div
+                          key={lesson._id}
+                          draggable
+                          onDragStart={() => setDragLesson({ chapterId: chapter._id, lessonId: lesson._id })}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => {
+                            if (!dragLesson || dragLesson.chapterId !== chapter._id) return;
+                            void reorderLessons(chapter._id, dragLesson.lessonId, lesson._id);
+                            setDragLesson(null);
+                          }}
+                          style={{
+                            borderBottom: idx === chapter.lessons.length - 1 ? "none" : "1px solid var(--border)",
+                            padding: "1rem 0.5rem",
+                            background: "transparent",
+                            cursor: "grab",
+                            transition: "all 0.2s",
+                          }}
+                          className="hover:bg-surface-soft"
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "center" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "1rem", minWidth: 0 }}>
+                              <div style={{ color: "var(--muted)", flexShrink: 0, display: "grid", placeItems: "center" }}>
+                                <GripVertical size={18} />
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <p style={{ margin: 0, fontWeight: 700, fontSize: "0.92rem", color: "var(--foreground)" }}>
+                                  Lesson {idx + 1}: {lesson.title}
+                                </p>
+                                <div style={{ margin: "0.3rem 0 0", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "var(--muted)", fontSize: "0.75rem", fontWeight: 500 }}>
+                                    <Video size={13} /> {lesson.items.filter(i => i.type === 'video').length}
+                                  </span>
+                                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "var(--muted)", fontSize: "0.75rem", fontWeight: 500 }}>
+                                    <HelpCircle size={13} /> {lesson.items.filter(i => i.type === 'quiz').length}
+                                  </span>
+                                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "var(--muted)", fontSize: "0.75rem", fontWeight: 500 }}>
+                                    <ClipboardList size={13} /> {lesson.items.filter(i => i.type === 'assignment').length}
+                                  </span>
+                                  <span style={{ width: 1, height: 12, background: "var(--border)" }} />
+                                  <span style={{ color: "var(--admin-accent-text)", fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.02em" }}>
+                                    {lesson.items.length} items total
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div style={{ display: "flex", gap: "0.5rem" }}>
-                            <button className="admin-btn admin-btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} onClick={() => openEditLessonDialog(chapter._id, lesson._id)}>
-                              <Pencil size={14} /> Edit
-                            </button>
-                            <button className="admin-btn admin-btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} title={lesson.coverImageFilePath ? "Change cover" : "Add cover"} onClick={() => triggerCoverUpload(chapter._id, lesson._id)} disabled={coverUploading}>
-                              {lesson.coverImageFilePath ? <img src={`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001"}${lesson.coverImageFilePath}`} alt="" style={{ width: 14, height: 14, borderRadius: 3, objectFit: "cover" }} /> : <Image size={14} />}
-                              Cover
-                            </button>
-                            <button className="admin-btn admin-btn-danger" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} onClick={() => void removeLesson(chapter._id, lesson._id)}>
-                              <Trash2 size={14} /> Delete
-                            </button>
+                            <div style={{ display: "flex", gap: "0.5rem" }}>
+                              <button className="admin-btn admin-btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} onClick={() => openEditLessonDialog(chapter._id, lesson._id)}>
+                                <Pencil size={14} /> Edit
+                              </button>
+                              <button className="admin-btn admin-btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} title={lesson.coverImageFilePath ? "Change cover" : "Add cover"} onClick={() => triggerCoverUpload(chapter._id, lesson._id)} disabled={coverUploading}>
+                                {lesson.coverImageFilePath ? <img src={`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001"}${lesson.coverImageFilePath}`} alt="" style={{ width: 14, height: 14, borderRadius: 3, objectFit: "cover" }} /> : <Image size={14} />}
+                                Cover
+                              </button>
+                              <button className="admin-btn admin-btn-danger" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }} onClick={() => void removeLesson(chapter._id, lesson._id)}>
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
+      {/* ── Create / Edit Chapter Dialog ─────────────────── */}
       {showChapterDialog && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1200, display: "grid", placeItems: "center", padding: "1rem" }}>
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.58)" }} onClick={() => setShowChapterDialog(false)} />
@@ -681,7 +913,7 @@ export function ChaptersView() {
             <div style={{ display: "grid", gap: "1rem", marginTop: "1rem" }}>
               <div>
                 <label className="admin-label">Chapter Title</label>
-                <input className="admin-input" placeholder="e.g. Python for Beginners" value={chapterTitle} onChange={(e) => setChapterTitle(e.target.value)} autoFocus />
+                <input className="admin-input" placeholder="e.g. Introduction to Numbers" value={chapterTitle} onChange={(e) => setChapterTitle(e.target.value)} autoFocus />
               </div>
               <div>
                 <label className="admin-label">Chapter Description (Markdown)</label>
@@ -692,6 +924,19 @@ export function ChaptersView() {
                   maxHeight={400}
                   placeholder="# Chapter overview\n\nDescribe what this chapter covers..."
                 />
+              </div>
+              <div>
+                <label className="admin-label">Subject</label>
+                <select
+                  className="admin-select"
+                  value={chapterSubjectId}
+                  onChange={(e) => setChapterSubjectId(e.target.value)}
+                >
+                  <option value="">— No subject —</option>
+                  {allSubjects.map((s) => (
+                    <option key={s._id} value={s._id}>{s.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="admin-label">Assigned Classes</label>
@@ -709,6 +954,7 @@ export function ChaptersView() {
         </div>
       )}
 
+      {/* ── Create Lesson Dialog ───────────────────────────── */}
       {showLessonCreateDialog && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1250, display: "grid", placeItems: "center", padding: "1rem" }}>
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.58)" }} onClick={() => setShowLessonCreateDialog(false)} />
@@ -735,6 +981,7 @@ export function ChaptersView() {
         </div>
       )}
 
+      {/* ── Edit Lesson Dialog ─────────────────────────────── */}
       {showLessonEditDialog && lessonEditor && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1300, display: "grid", placeItems: "center", padding: "1rem" }}>
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} onClick={() => setShowLessonEditDialog(false)} />
