@@ -2,17 +2,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-Create `.env.local` from `.env.example` and configure Firebase + API values:
-
-```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
-NEXT_PUBLIC_FIREBASE_API_KEY=your-firebase-web-api-key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-firebase-project-id.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-firebase-project-id
-NEXT_PUBLIC_FIREBASE_APP_ID=1:1234567890:web:abcdef1234567890
-```
-
-Then run the development server:
+First, run the development server:
 
 ```bash
 npm run dev
