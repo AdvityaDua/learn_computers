@@ -18,6 +18,8 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/constants/roles.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { TeacherContentAccessGuard } from '../common/guards/teacher-content-access.guard';
+import { ContentModel } from '../common/decorators/content-model.decorator';
 import {
   buildDiskStorage,
   fileSizeLimit,
@@ -30,10 +32,15 @@ import { UpdateLessonDto } from './dto/update-lesson.dto';
 @Controller('lessons')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class LessonsController {
-  constructor(private readonly lessonsService: LessonsService) {}
+  constructor(
+    private readonly lessonsService: LessonsService,
+    private readonly teacherContentAccessGuard: TeacherContentAccessGuard,
+  ) {}
 
   @Post()
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
+  @ContentModel('lesson')
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -48,7 +55,7 @@ export class LessonsController {
       },
     ),
   )
-  create(
+  async create(
     @Body() dto: CreateLessonDto,
     @UploadedFiles()
     files: {
@@ -59,6 +66,10 @@ export class LessonsController {
     },
     @Req() req: Request & { user: AuthUser },
   ) {
+    await this.teacherContentAccessGuard.assertClassAccessForCreate(
+      req.user,
+      dto.classIds,
+    );
     return this.lessonsService.create(dto, files, req.user.sub);
   }
 
@@ -80,7 +91,9 @@ export class LessonsController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
+  @ContentModel('lesson')
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -110,7 +123,9 @@ export class LessonsController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
+  @ContentModel('lesson')
   remove(@Param('id') id: string) {
     return this.lessonsService.remove(id);
   }

@@ -16,6 +16,8 @@ import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { TeacherContentAccessGuard } from '../common/guards/teacher-content-access.guard';
+import { ContentModel } from '../common/decorators/content-model.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/constants/roles.enum';
 import { AuthUser } from '../common/types/auth-user.type';
@@ -26,7 +28,9 @@ export class QuizzesController {
   constructor(private readonly quizzesService: QuizzesService) {}
 
   @Post()
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
+  @ContentModel('quiz')
   create(@Body() dto: CreateQuizDto, @Req() req: Request & { user: AuthUser }) {
     return this.quizzesService.create(dto, req.user.sub);
   }
@@ -48,13 +52,17 @@ export class QuizzesController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
+  @ContentModel('quiz')
   update(@Param('id') id: string, @Body() dto: UpdateQuizDto) {
     return this.quizzesService.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
+  @ContentModel('quiz')
   remove(@Param('id') id: string) {
     return this.quizzesService.remove(id);
   }

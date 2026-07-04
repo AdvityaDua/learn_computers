@@ -241,6 +241,7 @@ export class UsersService {
         email: (teacher as any).email,
         profileImage: (teacher as any).profileImage ?? null,
         phone: (teacher as any).phone ?? null,
+        canEditCourses: Boolean((teacher as any).canEditCourses),
       },
       school,
       classes: classes.map((cls: any) => ({
@@ -276,6 +277,21 @@ export class UsersService {
       { classIds },
       { new: true },
     );
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
+  async setCanEditCourses(
+    userId: string,
+    canEditCourses: boolean,
+  ): Promise<UserDocument> {
+    const user = await this.userModel
+      .findByIdAndUpdate(
+        userId,
+        { canEditCourses: Boolean(canEditCourses) },
+        { new: true },
+      )
+      .select('-passwordHash');
     if (!user) throw new NotFoundException('User not found');
     return user;
   }

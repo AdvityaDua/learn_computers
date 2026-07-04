@@ -121,6 +121,16 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Admin)
+  @Patch(':id/course-permission')
+  async setCanEditCourses(
+    @Param('id') id: string,
+    @Body('canEditCourses') canEditCourses: boolean,
+  ) {
+    return this.usersService.setCanEditCourses(id, canEditCourses);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
   @Patch(':id')
   async update(@Param('id') id: string, @Body() body: any) {
     return this.usersService.update(id, body);

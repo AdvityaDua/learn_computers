@@ -22,6 +22,8 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/constants/roles.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { TeacherContentAccessGuard } from '../common/guards/teacher-content-access.guard';
+import { ContentModel } from '../common/decorators/content-model.decorator';
 import { buildDiskStorage } from '../common/utils/file-upload.util';
 import { AuthUser } from '../common/types/auth-user.type';
 import { ActivitiesService } from './activities.service';
@@ -33,10 +35,14 @@ const IMAGE_SIZE_LIMIT = 20 * 1024 * 1024;
 @Controller('activities')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ActivitiesController {
-  constructor(private readonly activitiesService: ActivitiesService) {}
+  constructor(
+    private readonly activitiesService: ActivitiesService,
+    private readonly teacherContentAccessGuard: TeacherContentAccessGuard,
+  ) {}
 
   @Post('images')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
   @UseInterceptors(
     FileInterceptor('imageFile', {
       storage: buildDiskStorage('activities/images'),
@@ -48,7 +54,9 @@ export class ActivitiesController {
   }
 
   @Post()
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
+  @ContentModel('activity')
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -61,7 +69,7 @@ export class ActivitiesController {
       },
     ),
   )
-  create(
+  async create(
     @Body() dto: CreateActivityDto,
     @UploadedFiles()
     files: {
@@ -70,6 +78,10 @@ export class ActivitiesController {
     },
     @Req() req: Request & { user: AuthUser },
   ) {
+    await this.teacherContentAccessGuard.assertClassAccessForCreate(
+      req.user,
+      dto.classIds,
+    );
     return this.activitiesService.create(dto, files, req.user.sub);
   }
 
@@ -90,7 +102,9 @@ export class ActivitiesController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
+  @ContentModel('activity')
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -116,7 +130,9 @@ export class ActivitiesController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
+  @ContentModel('activity')
   remove(@Param('id') id: string) {
     return this.activitiesService.remove(id);
   }

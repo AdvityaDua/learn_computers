@@ -27,6 +27,8 @@ import {
   ActivitySchema,
 } from '../activities/schemas/activity.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { Subject, SubjectSchema } from '../subjects/schemas/subject.schema';
+import { Class, ClassSchema } from '../classes/class.schema';
 import {
   TeacherDeadline,
   TeacherDeadlineSchema,
@@ -47,6 +49,8 @@ import { buildDiskStorage } from '../common/utils/file-upload.util';
       { name: Assignment.name, schema: AssignmentSchema },
       { name: Activity.name, schema: ActivitySchema },
       { name: User.name, schema: UserSchema },
+      { name: Subject.name, schema: SubjectSchema },
+      { name: Class.name, schema: ClassSchema },
     ]),
   ],
   controllers: [ProgressController],

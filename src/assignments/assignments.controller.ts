@@ -22,6 +22,8 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/constants/roles.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { TeacherContentAccessGuard } from '../common/guards/teacher-content-access.guard';
+import { ContentModel } from '../common/decorators/content-model.decorator';
 import { buildDiskStorage } from '../common/utils/file-upload.util';
 import { AuthUser } from '../common/types/auth-user.type';
 import { AssignmentsService } from './assignments.service';
@@ -33,14 +35,18 @@ const IMAGE_SIZE_LIMIT = 20 * 1024 * 1024; // 20 MB per image
 @Controller('assignments')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AssignmentsController {
-  constructor(private readonly assignmentsService: AssignmentsService) {}
+  constructor(
+    private readonly assignmentsService: AssignmentsService,
+    private readonly teacherContentAccessGuard: TeacherContentAccessGuard,
+  ) {}
 
   /**
    * Inline image upload — called by the markdown editor toolbar.
    * Returns { url } that gets inserted as ![alt](url) in the markdown.
    */
   @Post('images')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
   @UseInterceptors(
     FileInterceptor('imageFile', {
       storage: buildDiskStorage('assignments/images'),
@@ -52,7 +58,9 @@ export class AssignmentsController {
   }
 
   @Post()
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
+  @ContentModel('assignment')
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -65,7 +73,7 @@ export class AssignmentsController {
       },
     ),
   )
-  create(
+  async create(
     @Body() dto: CreateAssignmentDto,
     @UploadedFiles()
     files: {
@@ -74,6 +82,10 @@ export class AssignmentsController {
     },
     @Req() req: Request & { user: AuthUser },
   ) {
+    await this.teacherContentAccessGuard.assertClassAccessForCreate(
+      req.user,
+      dto.classIds,
+    );
     return this.assignmentsService.create(dto, files, req.user.sub);
   }
 
@@ -94,7 +106,9 @@ export class AssignmentsController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
+  @ContentModel('assignment')
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -120,7 +134,9 @@ export class AssignmentsController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherContentAccessGuard)
+  @ContentModel('assignment')
   remove(@Param('id') id: string) {
     return this.assignmentsService.remove(id);
   }

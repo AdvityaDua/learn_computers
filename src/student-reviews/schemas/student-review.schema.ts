@@ -1,8 +1,23 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
-export const REVIEW_TYPES = ['daily', 'monthly'] as const;
+export const REVIEW_TYPES = ['daily', 'monthly', 'yearly'] as const;
 export type ReviewType = (typeof REVIEW_TYPES)[number];
+
+/** A teacher-entered mark for one subject, attached to a daily/monthly review. A single review can carry marks for several subjects at once. */
+@Schema({ _id: false })
+export class MarkEntry {
+  @Prop({ required: true, trim: true })
+  subject: string;
+
+  @Prop({ type: Number, required: true, min: 0 })
+  obtained: number;
+
+  @Prop({ type: Number, required: true, min: 1 })
+  total: number;
+}
+
+export const MarkEntrySchema = SchemaFactory.createForClass(MarkEntry);
 
 @Schema({ timestamps: true })
 export class StudentReview {
@@ -29,6 +44,7 @@ export class StudentReview {
   @Prop({ type: Number, min: 1, max: 12 })
   month?: number;
 
+  /** For monthly and yearly reviews */
   @Prop({ type: Number, min: 2000, max: 2100 })
   year?: number;
 
@@ -53,12 +69,18 @@ export class StudentReview {
 
   @Prop({ type: [String], default: [] })
   areasForImprovement: string[];
+
+  /** Per-subject marks the teacher entered for this review period (separate from system-tracked quiz/task scores). */
+  @Prop({ type: [MarkEntrySchema], default: [] })
+  marks: MarkEntry[];
 }
 
 export type StudentReviewDocument = HydratedDocument<StudentReview>;
 export const StudentReviewSchema = SchemaFactory.createForClass(StudentReview);
 
-// Unique: one daily review per student per date; one monthly per student per month+year
+// Unique: one daily review per student per date; one monthly per student per month+year;
+// one yearly per student per year (yearly docs leave `month` unset, so they share this same
+// compound index with monthly docs without colliding — `type` keeps the two apart).
 StudentReviewSchema.index({ studentId: 1, type: 1, date: 1 }, { unique: true, sparse: true });
 StudentReviewSchema.index({ studentId: 1, type: 1, month: 1, year: 1 }, { unique: true, sparse: true });
 StudentReviewSchema.index({ classId: 1, type: 1 });

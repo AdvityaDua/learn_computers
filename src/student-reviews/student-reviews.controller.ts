@@ -64,19 +64,29 @@ export class StudentReviewsController {
 
   @Get(':id')
   @Roles(UserRole.Admin, UserRole.Instructor, UserRole.Student)
-  findOne(@Param('id') id: string) {
-    return this.reviewsService.findOne(id);
+  findOne(
+    @Req() req: Request & { user: AuthUser },
+    @Param('id') id: string,
+  ) {
+    return this.reviewsService.findOne(id, req.user.sub, req.user.role);
   }
 
   @Patch(':id')
   @Roles(UserRole.Instructor, UserRole.Admin)
-  update(@Param('id') id: string, @Body() dto: UpdateStudentReviewDto) {
-    return this.reviewsService.update(id, dto);
+  update(
+    @Req() req: Request & { user: AuthUser },
+    @Param('id') id: string,
+    @Body() dto: UpdateStudentReviewDto,
+  ) {
+    return this.reviewsService.update(id, dto, req.user.sub, req.user.role);
   }
 
   @Delete(':id')
   @Roles(UserRole.Admin, UserRole.Instructor)
-  remove(@Param('id') id: string) {
-    return this.reviewsService.remove(id);
+  remove(
+    @Req() req: Request & { user: AuthUser },
+    @Param('id') id: string,
+  ) {
+    return this.reviewsService.remove(id, req.user.sub, req.user.role);
   }
 }

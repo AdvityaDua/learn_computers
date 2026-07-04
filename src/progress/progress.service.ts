@@ -32,6 +32,8 @@ import {
   ActivityDocument,
 } from '../activities/schemas/activity.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
+import { Subject, SubjectDocument } from '../subjects/schemas/subject.schema';
+import { Class, ClassDocument } from '../classes/class.schema';
 import { UserRole } from '../common/constants/roles.enum';
 import {
   TeacherDeadline,
@@ -88,28 +90,64 @@ export class ProgressService {
     private readonly activityModel: Model<ActivityDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @InjectModel(Subject.name)
+    private readonly subjectModel: Model<SubjectDocument>,
+    @InjectModel(Class.name)
+    private readonly classModel: Model<ClassDocument>,
     @InjectModel(TeacherDeadline.name)
     private readonly teacherDeadlineModel: Model<TeacherDeadlineDocument>,
   ) {}
 
-  async getLessonProgress(userId: string) {
-    this.ensureObjectId(userId, 'Invalid user id format');
+  /**
+   * A class's curriculum is the chapters whose subject belongs to that class (subjects
+   * carry the class relationship via a real Class ObjectId). Chapters also carry a legacy
+   * `classIds` field of class *names* (e.g. "Class 3") from before subjects existed, which is
+   * also how `User.classIds` stores a student's class — so `classId` here may arrive as either
+   * a Class ObjectId or a class name, and both are resolved. Without this scoping, a student's
+   * totals were computed against every chapter in the whole school.
+   */
+  private async getCurriculumScope(
+    classId?: string,
+  ): Promise<{ lessonIds: string[]; quizIds: string[] }> {
+    const chapterFilter: Record<string, unknown> = {};
+    if (classId) {
+      const resolvedClassId = Types.ObjectId.isValid(classId)
+        ? classId
+        : (await this.classModel.findOne({ name: classId }).select('_id').lean())?._id;
 
-    const chapters = await this.chapterModel.find().lean();
+      const subjects = resolvedClassId
+        ? await this.subjectModel.find({ classId: resolvedClassId }).select('_id').lean()
+        : [];
+      const subjectIds = subjects.map((s) => s._id);
+      chapterFilter.$or = [
+        { subjectId: { $in: subjectIds } },
+        { classIds: classId },
+      ];
+    }
 
-    const allLessonIds: string[] = [];
-    const allQuizRefIds: string[] = [];
+    const chapters = await this.chapterModel.find(chapterFilter).lean();
+    const lessonIds: string[] = [];
+    const quizIds: string[] = [];
 
     for (const chapter of chapters) {
       for (const lesson of (chapter as any).lessons ?? []) {
-        allLessonIds.push(String(lesson._id));
-        for (const item of lesson.items ?? []) {
-          if (item.type === 'quiz') {
-            allQuizRefIds.push(String(item.refId));
-          }
+        lessonIds.push(String(lesson._id));
+        for (const item of (lesson.items ?? []) as ChapterLessonItem[]) {
+          if (item.type === 'quiz') quizIds.push(String(item.refId));
         }
       }
     }
+
+    return { lessonIds, quizIds };
+  }
+
+  async getLessonProgress(userId: string) {
+    this.ensureObjectId(userId, 'Invalid user id format');
+
+    const user = await this.userModel.findById(userId).select('classIds').lean();
+    const classId = user?.classIds?.[0];
+    const { lessonIds: allLessonIds, quizIds: allQuizRefIds } =
+      await this.getCurriculumScope(classId);
 
     const totalLessons = allLessonIds.length;
     const totalQuizzes = allQuizRefIds.length;
@@ -958,23 +996,10 @@ export class ProgressService {
 
     if (students.length === 0) return [];
 
-    // Build global curriculum info: all lesson IDs and quiz IDs
-    const chapters = await this.chapterModel.find().lean();
-    const allLessonIds: string[] = [];
-    const allQuizIds: string[] = [];
-
-    for (const chapter of chapters) {
-      for (const lesson of (chapter as any).lessons ?? []) {
-        allLessonIds.push(String(lesson._id));
-        for (const item of (lesson.items ?? []) as ChapterLessonItem[]) {
-          if (item.type === 'quiz') {
-            allQuizIds.push(String(item.refId));
-          }
-        }
-      }
-    }
-
-    if (allLessonIds.length === 0) return [];
+    // A class with no assigned subjects yet still has a roster — show it ranked by points
+    // instead of hiding the whole leaderboard just because there's nothing to complete yet.
+    const { lessonIds: allLessonIds, quizIds: allQuizIds } =
+      await this.getCurriculumScope(classId);
 
     const studentIds = students.map((s) => new Types.ObjectId(String(s._id)));
 
@@ -1027,6 +1052,14 @@ export class ProgressService {
         const allLessonsComplete = completedLessonCount >= totalLessons;
         const allQuizzesComplete =
           totalQuizzes === 0 || completedQuizCount >= totalQuizzes;
+        const totalItems = totalLessons + totalQuizzes;
+        const completionPercentage =
+          totalItems > 0
+            ? Math.round(
+                ((completedLessonCount + completedQuizCount) / totalItems) *
+                  100,
+              )
+            : 0;
 
         return {
           _id: uid,
@@ -1035,8 +1068,12 @@ export class ProgressService {
           profileImage: (s as any).profileImage ?? null,
           points: (s as any).points ?? 0,
           lessonCount: completedLessonCount,
+          totalLessons,
           quizCount: completedQuizCount,
-          isTopLearner: allLessonsComplete && allQuizzesComplete,
+          totalQuizzes,
+          completionPercentage,
+          // Nobody is a "top learner" for finishing a curriculum that doesn't exist yet.
+          isTopLearner: totalLessons > 0 && allLessonsComplete && allQuizzesComplete,
         };
       })
       .sort(
@@ -1075,19 +1112,8 @@ export class ProgressService {
         summary: { totalStudents: 0, avgCompletion: 0, avgPoints: 0 },
       };
 
-    // Build curriculum info
-    const chapters = await this.chapterModel.find().lean();
-    const allLessonIds: string[] = [];
-    const allQuizIds: string[] = [];
-
-    for (const chapter of chapters) {
-      for (const lesson of (chapter as any).lessons ?? []) {
-        allLessonIds.push(String(lesson._id));
-        for (const item of (lesson.items ?? []) as ChapterLessonItem[]) {
-          if (item.type === 'quiz') allQuizIds.push(String(item.refId));
-        }
-      }
-    }
+    const { lessonIds: allLessonIds, quizIds: allQuizIds } =
+      await this.getCurriculumScope(classId);
 
     const totalLessons = allLessonIds.length;
     const totalQuizzes = allQuizIds.length;
@@ -1246,19 +1272,8 @@ export class ProgressService {
 
     if (students.length === 0) return [];
 
-    // Build curriculum info
-    const chapters = await this.chapterModel.find().lean();
-    const allLessonIds: string[] = [];
-    const allQuizIds: string[] = [];
-
-    for (const chapter of chapters) {
-      for (const lesson of (chapter as any).lessons ?? []) {
-        allLessonIds.push(String(lesson._id));
-        for (const item of (lesson.items ?? []) as ChapterLessonItem[]) {
-          if (item.type === 'quiz') allQuizIds.push(String(item.refId));
-        }
-      }
-    }
+    const { lessonIds: allLessonIds, quizIds: allQuizIds } =
+      await this.getCurriculumScope(classId);
 
     const totalLessons = allLessonIds.length;
     const totalQuizzes = allQuizIds.length;

@@ -50,6 +50,10 @@ export class User {
   /** Accumulated points from quiz scores and approved task submissions */
   @Prop({ type: Number, default: 0, min: 0 })
   points: number;
+
+  /** Admin-granted permission letting an instructor edit chapters/lessons for their assigned classes */
+  @Prop({ default: false })
+  canEditCourses: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

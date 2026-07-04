@@ -16,6 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { TeacherCourseAccessGuard } from '../common/guards/teacher-course-access.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/constants/roles.enum';
 import { ChaptersService } from './chapters.service';
@@ -32,7 +33,8 @@ export class ChaptersController {
   constructor(private readonly chaptersService: ChaptersService) {}
 
   @Post()
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherCourseAccessGuard)
   create(
     @Body() dto: CreateChapterDto,
     @Req() req: Request & { user: AuthUser },
@@ -46,7 +48,8 @@ export class ChaptersController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherCourseAccessGuard)
   update(@Param('id') id: string, @Body() dto: UpdateChapterDto) {
     return this.chaptersService.update(id, dto);
   }
@@ -57,7 +60,8 @@ export class ChaptersController {
   }
 
   @Post(':id/cover')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherCourseAccessGuard)
   @UseInterceptors(FileInterceptor('coverImage'))
   uploadChapterCover(
     @Param('id') id: string,
@@ -67,7 +71,8 @@ export class ChaptersController {
   }
 
   @Post(':id/lessons/:lessonId/cover')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherCourseAccessGuard)
   @UseInterceptors(FileInterceptor('coverImage'))
   uploadLessonCover(
     @Param('id') id: string,
@@ -78,13 +83,15 @@ export class ChaptersController {
   }
 
   @Post(':id/lessons')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherCourseAccessGuard)
   addLesson(@Param('id') id: string, @Body() dto: CreateChapterLessonDto) {
     return this.chaptersService.addLesson(id, dto);
   }
 
   @Patch(':id/lessons/reorder')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherCourseAccessGuard)
   reorderLessons(
     @Param('id') id: string,
     @Body() dto: ReorderChapterLessonsDto,
@@ -93,7 +100,8 @@ export class ChaptersController {
   }
 
   @Patch(':id/lessons/:lessonId')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherCourseAccessGuard)
   updateLesson(
     @Param('id') id: string,
     @Param('lessonId') lessonId: string,
@@ -103,13 +111,15 @@ export class ChaptersController {
   }
 
   @Delete(':id/lessons/:lessonId')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherCourseAccessGuard)
   removeLesson(@Param('id') id: string, @Param('lessonId') lessonId: string) {
     return this.chaptersService.removeLesson(id, lessonId);
   }
 
   @Delete(':id')
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.Admin, UserRole.Instructor)
+  @UseGuards(TeacherCourseAccessGuard)
   remove(@Param('id') id: string) {
     return this.chaptersService.remove(id);
   }

@@ -16,7 +16,12 @@ import {
   Activity,
   ActivitySchema,
 } from '../activities/schemas/activity.schema';
+import { User, UserSchema } from '../users/schemas/user.schema';
+import { Subject, SubjectSchema } from '../subjects/schemas/subject.schema';
+import { Class, ClassSchema } from '../classes/class.schema';
 import { buildDiskStorage } from '../common/utils/file-upload.util';
+import { TeacherCourseAccessGuard } from '../common/guards/teacher-course-access.guard';
+import { TeacherContentAccessGuard } from '../common/guards/teacher-content-access.guard';
 
 @Module({
   imports: [
@@ -26,11 +31,19 @@ import { buildDiskStorage } from '../common/utils/file-upload.util';
       { name: Quiz.name, schema: QuizSchema },
       { name: Assignment.name, schema: AssignmentSchema },
       { name: Activity.name, schema: ActivitySchema },
+      { name: User.name, schema: UserSchema },
+      { name: Subject.name, schema: SubjectSchema },
+      { name: Class.name, schema: ClassSchema },
     ]),
     MulterModule.register({ storage: buildDiskStorage('chapters') }),
   ],
   controllers: [LessonsController, ChaptersController],
-  providers: [LessonsService, ChaptersService],
+  providers: [
+    LessonsService,
+    ChaptersService,
+    TeacherCourseAccessGuard,
+    TeacherContentAccessGuard,
+  ],
   exports: [LessonsService, ChaptersService],
 })
 export class LessonsModule {}
