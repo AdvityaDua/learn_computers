@@ -5,7 +5,7 @@ import { ClassMultiSelect } from "./class-multi-select";
 import { showAdminDialog } from "./admin-dialog";
 
 type School = { _id: string; name: string };
-type Teacher = { _id: string; fullName: string; email: string; schoolId?: School; classIds: string[]; profileImage?: string };
+type Teacher = { _id: string; fullName: string; email: string; schoolId?: School; classIds: string[]; profileImage?: string; canEditCourses?: boolean };
 type ClassDoc = { _id: string; name: string };
 
 function TeacherDialog({
@@ -29,6 +29,7 @@ function TeacherDialog({
     password: "", // Only used for creation
     schoolId: "",
     classIds: [] as string[],
+    canEditCourses: false,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -42,9 +43,10 @@ function TeacherDialog({
           password: "",
           schoolId: editing.schoolId?._id || "",
           classIds: editing.classIds || [],
+          canEditCourses: editing.canEditCourses ?? false,
         });
       } else {
-        setFormData({ fullName: "", email: "", password: "", schoolId: "", classIds: [] });
+        setFormData({ fullName: "", email: "", password: "", schoolId: "", classIds: [], canEditCourses: false });
       }
       setError("");
     }
@@ -79,6 +81,12 @@ function TeacherDialog({
           method: "PATCH",
           body: JSON.stringify({ classIds: formData.classIds }),
         });
+
+        // Update course-edit permission
+        await apiFetch(`/users/${editing._id}/course-permission`, {
+          method: "PATCH",
+          body: JSON.stringify({ canEditCourses: formData.canEditCourses }),
+        });
       } else {
         // Create new teacher
         if (!formData.password) {
@@ -98,6 +106,13 @@ function TeacherDialog({
             classIds: formData.classIds.length > 0 ? formData.classIds : undefined,
           }),
         });
+
+        if (formData.canEditCourses && newUser?._id) {
+          await apiFetch(`/users/${newUser._id}/course-permission`, {
+            method: "PATCH",
+            body: JSON.stringify({ canEditCourses: true }),
+          });
+        }
       }
 
       onSuccess();
@@ -176,6 +191,21 @@ function TeacherDialog({
                 <label className="admin-label">Assigned Classes</label>
                 <ClassMultiSelect selectedIds={formData.classIds} onChange={(ids) => setFormData({ ...formData, classIds: ids })} />
               </div>
+
+              <label style={{ display: "flex", alignItems: "flex-start", gap: "0.625rem", cursor: "pointer", padding: "0.75rem", borderRadius: "0.625rem", background: "var(--surface-soft)", border: "1px solid var(--border)" }}>
+                <input
+                  type="checkbox"
+                  checked={formData.canEditCourses}
+                  onChange={(e) => setFormData({ ...formData, canEditCourses: e.target.checked })}
+                  style={{ marginTop: "0.15rem", width: 16, height: 16, flexShrink: 0, accentColor: "var(--admin-accent)" }}
+                />
+                <span>
+                  <span style={{ display: "block", fontWeight: 700, fontSize: "0.875rem", color: "var(--foreground)" }}>Can edit courses</span>
+                  <span style={{ display: "block", fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.125rem" }}>
+                    Lets this teacher edit chapters and lessons in the Teacher Portal, limited to the classes assigned above.
+                  </span>
+                </span>
+              </label>
             </div>
           </div>
 
@@ -362,7 +392,7 @@ export function TeachersView() {
                       )}
                     </td>
                     <td>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginBottom: t.canEditCourses ? "0.3rem" : 0 }}>
                         {t.classIds && t.classIds.length > 0 ? (
                           t.classIds.map(c => (
                             <span key={c} className="admin-badge admin-badge-blue" style={{ fontSize: "0.65rem", padding: "0.1rem 0.3rem" }}>
@@ -373,6 +403,9 @@ export function TeachersView() {
                           <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>—</span>
                         )}
                       </div>
+                      {t.canEditCourses ? (
+                        <span className="admin-badge admin-badge-green" style={{ fontSize: "0.65rem", padding: "0.1rem 0.3rem" }}>Can edit courses</span>
+                      ) : null}
                     </td>
                     <td>
                       <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
