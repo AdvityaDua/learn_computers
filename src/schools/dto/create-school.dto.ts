@@ -4,6 +4,8 @@ import {
   IsArray,
   IsBoolean,
   IsEmail,
+  IsNumber,
+  Min,
 } from 'class-validator';
 
 export class CreateSchoolDto {
@@ -36,4 +38,9 @@ export class CreateSchoolDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  maxStudents?: number;
 }
