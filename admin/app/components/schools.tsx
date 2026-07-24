@@ -279,7 +279,7 @@ function SchoolDetailView({
         </div>
       </div>
 
-      <div className="admin-card" style={{ overflow: "hidden" }}>
+      <div className="admin-card" style={{ overflow: "hidden", marginBottom: "1.25rem" }}>
         <div className="admin-card-header" style={{ background: "var(--surface-soft)", borderBottom: "1px solid var(--border)" }}>
           <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Teachers</span>
           <span className="admin-badge admin-badge-gray">{teachers.length}</span>
@@ -299,6 +299,41 @@ function SchoolDetailView({
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+
+      <div className="admin-card" style={{ overflow: "hidden" }}>
+        <div className="admin-card-header" style={{ background: "var(--surface-soft)", borderBottom: "1px solid var(--border)" }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Students</span>
+          <span className="admin-badge admin-badge-gray">{students.length}</span>
+        </div>
+        {loading ? (
+          <div style={{ padding: "2rem", textAlign: "center" }}><div className="admin-spinner" style={{ margin: "0 auto" }} /></div>
+        ) : students.length === 0 ? (
+          <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--muted)", fontSize: "0.8125rem" }}>No students enrolled at this school yet.</div>
+        ) : (
+          <div style={{ maxHeight: 420, overflowY: "auto" }}>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th style={{ textAlign: "right" }}>Points</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map(s => (
+                  <tr key={s._id}>
+                    <td style={{ fontWeight: 700, color: "var(--foreground)" }}>{s.fullName}</td>
+                    <td style={{ color: "var(--muted)" }}>{s.email}</td>
+                    <td style={{ textAlign: "right" }}>
+                      <span className="admin-badge admin-badge-gray">{s.points ?? 0}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
