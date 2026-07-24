@@ -223,6 +223,9 @@ html[data-theme="dark"] .admin-btn-primary {
 .admin-table tbody tr { transition: background 0.12s; }
 .admin-table tbody tr:hover { background: var(--surface-soft); }
 
+.admin-link-name { cursor: pointer; transition: color 0.12s; }
+.admin-link-name:hover { color: var(--admin-accent-text); text-decoration: underline; }
+
 /* ─── Badges ─────────────────────────────────────────────────────────────────── */
 .admin-badge {
   display: inline-flex; align-items: center; gap: 0.2rem;

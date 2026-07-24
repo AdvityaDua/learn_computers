@@ -1,21 +1,27 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, ArrowLeft, Mail, Phone, MapPin, GraduationCap, Users, Calendar } from "lucide-react";
 import { apiFetch } from "../lib/admin-api";
 import { ClassMultiSelect } from "./class-multi-select";
 import { TeacherMultiSelect } from "./teacher-multi-select";
 import { showAdminDialog } from "./admin-dialog";
+import { useAdminData } from "../contexts/admin-data-context";
 
-type School = { 
-  _id: string; 
-  name: string; 
-  code: string; 
-  isActive: boolean; 
-  contactEmail: string; 
+type School = {
+  _id: string;
+  name: string;
+  code: string;
+  isActive: boolean;
+  contactEmail: string;
   contactPhone: string;
+  address?: string;
   assignedClasses?: string[];
   teacherIds?: string[];
   maxStudents?: number;
+  createdAt?: string;
 };
+
+type SchoolTeacher = { _id: string; fullName: string; email: string };
+type SchoolStudent = { _id: string; fullName: string; email: string; points?: number; schoolId?: { _id: string } | string };
 
 function SchoolDialog({
   open,
@@ -153,17 +159,166 @@ function SchoolDialog({
   );
 }
 
+function SchoolDetailView({
+  school,
+  onBack,
+  onEdit,
+}: {
+  school: School;
+  onBack: () => void;
+  onEdit: () => void;
+}) {
+  const { classes } = useAdminData();
+  const [teachers, setTeachers] = useState<SchoolTeacher[]>([]);
+  const [students, setStudents] = useState<SchoolStudent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      apiFetch("/users/teachers").catch(() => []),
+      apiFetch("/users?role=student").catch(() => []),
+    ]).then(([teacherRes, studentRes]) => {
+      if (cancelled) return;
+      const allTeachers: SchoolTeacher[] = Array.isArray(teacherRes) ? teacherRes : (teacherRes.items || []);
+      const allStudents: SchoolStudent[] = Array.isArray(studentRes) ? studentRes : (studentRes.items || []);
+      setTeachers(allTeachers.filter(t => (school.teacherIds || []).includes(t._id)));
+      setStudents(allStudents.filter(s => {
+        const sid = typeof s.schoolId === "object" ? s.schoolId?._id : s.schoolId;
+        return sid === school._id;
+      }));
+    }).finally(() => !cancelled && setLoading(false));
+    return () => { cancelled = true; };
+  }, [school]);
+
+  const classGrade = (name: string) => classes.find(c => c.name === name)?.grade;
+
+  return (
+    <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+      <button
+        className="admin-btn admin-btn-ghost"
+        style={{ padding: "0.5rem 0.875rem", fontSize: "0.8125rem", marginBottom: "1.25rem" }}
+        onClick={onBack}
+      >
+        <ArrowLeft size={15} /> Back to Schools
+      </button>
+
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        marginBottom: "1.5rem", flexWrap: "wrap", gap: "1.5rem",
+        background: "var(--surface)", padding: "1.5rem", borderRadius: "1rem",
+        border: "1px solid var(--border)", boxShadow: "var(--elevation-1)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: "0.875rem",
+            background: "var(--admin-accent-soft)", color: "var(--admin-accent)",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            <Building2 size={26} />
+          </div>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+              <h2 style={{ fontSize: "1.375rem", fontWeight: 800, color: "var(--foreground)", margin: 0, letterSpacing: "-0.02em" }}>{school.name}</h2>
+              <span className={`admin-badge ${school.isActive ? "admin-badge-green" : "admin-badge-red"}`}>{school.isActive ? "Active" : "Inactive"}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.3rem" }}>
+              <span className="admin-badge admin-badge-gray">{school.code}</span>
+              {school.createdAt && (
+                <span style={{ fontSize: "0.75rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                  <Calendar size={12} /> Registered {new Date(school.createdAt).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <button className="admin-btn admin-btn-secondary" style={{ padding: "0.625rem 1.25rem", fontSize: "0.875rem" }} onClick={onEdit}>
+          <Pencil size={15} /> Edit School
+        </button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem", marginBottom: "1.25rem" }}>
+        <div className="admin-card" style={{ padding: "1.25rem 1.5rem" }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Contact Details</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem", marginTop: "0.875rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", color: "var(--foreground)" }}>
+              <Mail size={14} color="var(--muted)" /> {school.contactEmail || "—"}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", color: "var(--foreground)" }}>
+              <Phone size={14} color="var(--muted)" /> {school.contactPhone || "—"}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", color: "var(--foreground)" }}>
+              <MapPin size={14} color="var(--muted)" /> {school.address || "—"}
+            </div>
+          </div>
+        </div>
+        <div className="admin-card" style={{ padding: "1.25rem 1.5rem" }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Capacity</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem", marginTop: "0.875rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", color: "var(--foreground)" }}>
+              <Users size={14} color="var(--muted)" /> {students.length} student{students.length === 1 ? "" : "s"} enrolled{school.maxStudents ? ` (max ${school.maxStudents})` : ""}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", color: "var(--foreground)" }}>
+              <GraduationCap size={14} color="var(--muted)" /> {teachers.length} teacher{teachers.length === 1 ? "" : "s"} assigned
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="admin-card" style={{ padding: "1.25rem 1.5rem", marginBottom: "1.25rem" }}>
+        <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Assigned Classes</span>
+        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginTop: "0.875rem" }}>
+          {school.assignedClasses && school.assignedClasses.length > 0 ? (
+            school.assignedClasses.map(cls => (
+              <span key={cls} className="admin-badge admin-badge-blue">{cls}{classGrade(cls) ? ` · ${classGrade(cls)}` : ""}</span>
+            ))
+          ) : (
+            <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>No classes assigned.</span>
+          )}
+        </div>
+      </div>
+
+      <div className="admin-card" style={{ overflow: "hidden" }}>
+        <div className="admin-card-header" style={{ background: "var(--surface-soft)", borderBottom: "1px solid var(--border)" }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Teachers</span>
+          <span className="admin-badge admin-badge-gray">{teachers.length}</span>
+        </div>
+        {loading ? (
+          <div style={{ padding: "2rem", textAlign: "center" }}><div className="admin-spinner" style={{ margin: "0 auto" }} /></div>
+        ) : teachers.length === 0 ? (
+          <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--muted)", fontSize: "0.8125rem" }}>No teachers assigned to this school yet.</div>
+        ) : (
+          <table className="admin-table">
+            <tbody>
+              {teachers.map(t => (
+                <tr key={t._id}>
+                  <td style={{ fontWeight: 700, color: "var(--foreground)" }}>{t.fullName}</td>
+                  <td style={{ color: "var(--muted)" }}>{t.email}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function SchoolsView() {
   const [schools, setSchools] = useState<School[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSchool, setEditingSchool] = useState<School | null>(null);
+  const [viewingSchool, setViewingSchool] = useState<School | null>(null);
 
   const fetchSchools = async () => {
     try {
       setLoading(true);
       const res = await apiFetch("/schools?limit=100");
-      setSchools(res.items || []);
+      const items: School[] = res.items || [];
+      setSchools(items);
+      setViewingSchool(prev => prev ? items.find(s => s._id === prev._id) || prev : prev);
     } catch (e) {
       console.error(e);
     } finally {
@@ -180,6 +335,24 @@ export function SchoolsView() {
     await apiFetch(`/schools/${id}`, { method: "DELETE" });
     fetchSchools();
   };
+
+  if (viewingSchool) {
+    return (
+      <>
+        <SchoolDetailView
+          school={viewingSchool}
+          onBack={() => setViewingSchool(null)}
+          onEdit={() => { setEditingSchool(viewingSchool); setDialogOpen(true); }}
+        />
+        <SchoolDialog
+          open={dialogOpen}
+          editing={editingSchool}
+          onClose={() => setDialogOpen(false)}
+          onSuccess={() => { fetchSchools(); }}
+        />
+      </>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto" }}>
@@ -257,7 +430,13 @@ export function SchoolsView() {
               {schools.map(s => (
                 <tr key={s._id}>
                   <td>
-                    <div style={{ fontWeight: 700, color: "var(--foreground)", marginBottom: "0.25rem" }}>{s.name}</div>
+                    <div
+                      className="admin-link-name"
+                      style={{ fontWeight: 700, color: "var(--foreground)", marginBottom: "0.25rem" }}
+                      onClick={() => setViewingSchool(s)}
+                    >
+                      {s.name}
+                    </div>
                     <div style={{ fontSize: "0.75rem", color: "var(--muted)", display: "flex", gap: "0.5rem", alignItems: "center" }}>
                       <span className="admin-badge admin-badge-gray" style={{ fontSize: "0.6rem", padding: "0.1rem 0.3rem" }}>{s.code}</span>
                       {s.contactEmail && <span>{s.contactEmail}</span>}

@@ -8,7 +8,7 @@ import {
   CheckSquare, HelpCircle, Sun, Moon, LogOut, GraduationCap,
   Building2, School, GraduationCap as TeacherIcon,
   LineChart, FileCheck, Trophy, ChevronRight,
-  CalendarCheck, Star, Briefcase, BookMarked,
+  Star, BookMarked,
 } from "lucide-react";
 
 type NavItem = { id: AdminSection; label: string; icon: React.ReactNode };
@@ -46,9 +46,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Tracking",
     items: [
-      { id: "Attendance",     label: "Attendance",       icon: <CalendarCheck size={16} strokeWidth={2} /> },
       { id: "StudentReviews", label: "Student Reviews",  icon: <Star size={16} strokeWidth={2} /> },
-      { id: "TeacherWork",    label: "Teacher Work",     icon: <Briefcase size={16} strokeWidth={2} /> },
     ],
   },
 ] as { label: string; items: NavItem[] }[];
