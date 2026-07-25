@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, Building2, ArrowLeft, Mail, Phone, MapPin, GraduationCap, Users, Calendar } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, ArrowLeft, Mail, Phone, MapPin, GraduationCap, Users, Calendar, BookMarked, Layers } from "lucide-react";
 import { apiFetch } from "../lib/admin-api";
 import { ClassMultiSelect } from "./class-multi-select";
 import { TeacherMultiSelect } from "./teacher-multi-select";
 import { showAdminDialog } from "./admin-dialog";
 import { useAdminData } from "../contexts/admin-data-context";
+import { SubjectIcon } from "./subject-icon";
 
 type School = {
   _id: string;
@@ -168,10 +169,11 @@ function SchoolDetailView({
   onBack: () => void;
   onEdit: () => void;
 }) {
-  const { classes } = useAdminData();
+  const { classes, allSubjects } = useAdminData();
   const [teachers, setTeachers] = useState<SchoolTeacher[]>([]);
   const [students, setStudents] = useState<SchoolStudent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,7 +194,22 @@ function SchoolDetailView({
     return () => { cancelled = true; };
   }, [school]);
 
-  const classGrade = (name: string) => classes.find(c => c.name === name)?.grade;
+  const assignedClassRows = (school.assignedClasses || [])
+    .map(name => classes.find(c => c.name === name))
+    .filter((c): c is NonNullable<typeof c> => !!c);
+
+  useEffect(() => {
+    if (assignedClassRows.length > 0 && !assignedClassRows.some(c => c._id === selectedClassId)) {
+      setSelectedClassId(assignedClassRows[0]._id);
+    } else if (assignedClassRows.length === 0 && selectedClassId) {
+      setSelectedClassId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [school._id, classes.length]);
+
+  const subjectsForSelectedClass = selectedClassId
+    ? allSubjects.filter(s => s.classId === selectedClassId)
+    : [];
 
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto" }}>
@@ -267,16 +284,83 @@ function SchoolDetailView({
       </div>
 
       <div className="admin-card" style={{ padding: "1.25rem 1.5rem", marginBottom: "1.25rem" }}>
-        <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Assigned Classes</span>
-        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginTop: "0.875rem" }}>
-          {school.assignedClasses && school.assignedClasses.length > 0 ? (
-            school.assignedClasses.map(cls => (
-              <span key={cls} className="admin-badge admin-badge-blue">{cls}{classGrade(cls) ? ` · ${classGrade(cls)}` : ""}</span>
-            ))
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <Layers size={14} color="var(--muted)" />
+          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Classes at this School</span>
+          <span className="admin-badge admin-badge-gray">{assignedClassRows.length}</span>
+        </div>
+        <p style={{ margin: "0.375rem 0 0", fontSize: "0.75rem", color: "var(--muted)" }}>
+          Select a class to see the subjects offered for it.
+        </p>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.875rem" }}>
+          {assignedClassRows.length > 0 ? (
+            assignedClassRows.map(cls => {
+              const isActive = cls._id === selectedClassId;
+              return (
+                <button
+                  key={cls._id}
+                  onClick={() => setSelectedClassId(cls._id)}
+                  style={{
+                    padding: "0.5rem 1rem", borderRadius: "0.625rem",
+                    border: isActive ? "1.5px solid var(--admin-accent)" : "1.5px solid var(--border)",
+                    background: isActive ? "var(--admin-accent-soft)" : "var(--surface)",
+                    color: isActive ? "var(--admin-accent-text)" : "var(--foreground)",
+                    fontWeight: isActive ? 700 : 500, fontSize: "0.875rem",
+                    cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit",
+                    boxShadow: isActive ? "0 2px 8px var(--admin-accent-ring)" : "none",
+                  }}
+                >
+                  {cls.name}{cls.grade ? ` · ${cls.grade}` : ""}
+                </button>
+              );
+            })
           ) : (
             <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>No classes assigned.</span>
           )}
         </div>
+
+        {assignedClassRows.length > 0 && (
+          <div style={{ marginTop: "1.25rem", paddingTop: "1.125rem", borderTop: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.875rem" }}>
+              <BookMarked size={14} color="var(--muted)" />
+              <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Subjects{classes.find(c => c._id === selectedClassId) ? ` · ${classes.find(c => c._id === selectedClassId)!.name}` : ""}
+              </span>
+              <span className="admin-badge admin-badge-gray">{subjectsForSelectedClass.length}</span>
+            </div>
+
+            {subjectsForSelectedClass.length === 0 ? (
+              <div style={{ padding: "1.25rem", textAlign: "center", color: "var(--muted)", fontSize: "0.8125rem", background: "var(--surface-soft)", borderRadius: "0.75rem" }}>
+                No subjects have been created for this class yet.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: "0.625rem", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+                {subjectsForSelectedClass.map(subject => (
+                  <div
+                    key={subject._id}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "0.75rem",
+                      padding: "0.75rem 0.875rem", borderRadius: "0.75rem",
+                      background: "var(--surface-soft)",
+                      borderLeft: `3px solid ${subject.color}`,
+                    }}
+                  >
+                    <div style={{
+                      width: 34, height: 34, borderRadius: "0.625rem", flexShrink: 0,
+                      background: `${subject.color}18`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <SubjectIcon name={subject.icon} size={17} color={subject.color} />
+                    </div>
+                    <span style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {subject.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="admin-card" style={{ overflow: "hidden", marginBottom: "1.25rem" }}>
