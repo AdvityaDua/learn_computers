@@ -1,11 +1,122 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, Building2, ArrowLeft, Mail, Phone, MapPin, GraduationCap, Users, Calendar, BookMarked, Layers } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, ArrowLeft, Mail, Phone, MapPin, GraduationCap, Users, Calendar, BookMarked, Layers, X, ChevronDown, ChevronUp, Video, HelpCircle, ClipboardList, CheckSquare } from "lucide-react";
 import { apiFetch } from "../lib/admin-api";
 import { ClassMultiSelect } from "./class-multi-select";
 import { TeacherMultiSelect } from "./teacher-multi-select";
 import { showAdminDialog } from "./admin-dialog";
 import { useAdminData } from "../contexts/admin-data-context";
 import { SubjectIcon } from "./subject-icon";
+
+type SyllabusLessonItem = { _id: string; type: "video" | "quiz" | "assignment" | "activity"; refId: string; order: number };
+type SyllabusLesson = { _id: string; title: string; description: string; order: number; items: SyllabusLessonItem[] };
+type SyllabusChapter = { _id: string; title: string; description: string; lessons: SyllabusLesson[] };
+type SyllabusSubject = { _id: string; name: string; color: string; icon: string };
+
+const SYLLABUS_ITEM_ICON: Record<SyllabusLessonItem["type"], React.ReactNode> = {
+  video: <Video size={12} />,
+  quiz: <HelpCircle size={12} />,
+  assignment: <ClipboardList size={12} />,
+  activity: <CheckSquare size={12} />,
+};
+
+function SyllabusModal({ subject, onClose }: { subject: SyllabusSubject; onClose: () => void }) {
+  const [chapters, setChapters] = useState<SyllabusChapter[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    apiFetch(`/chapters?subjectId=${subject._id}`)
+      .then((res) => { if (!cancelled) setChapters(Array.isArray(res) ? res : []); })
+      .catch(() => { if (!cancelled) setChapters([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [subject._id]);
+
+  const totalLessons = chapters.reduce((acc, c) => acc + c.lessons.length, 0);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1400, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "1.25rem", overflowY: "auto" }}>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.62)" }} onClick={onClose} />
+      <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 720, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "1rem", boxShadow: "0 28px 70px rgba(0,0,0,0.25)", overflow: "hidden" }}>
+        <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "0.875rem" }}>
+          <div style={{ width: 44, height: 44, borderRadius: "0.75rem", flexShrink: 0, background: `${subject.color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <SubjectIcon name={subject.icon} size={22} color={subject.color} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: "1.0625rem", fontWeight: 700, color: "var(--foreground)" }}>{subject.name} · Syllabus</h2>
+            <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
+              {loading ? "Loading…" : `${chapters.length} chapter${chapters.length === 1 ? "" : "s"} · ${totalLessons} lesson${totalLessons === 1 ? "" : "s"}`}
+            </p>
+          </div>
+          <button className="admin-btn admin-btn-ghost" style={{ padding: "0.4rem 0.6rem" }} onClick={onClose}><X size={16} /></button>
+        </div>
+
+        <div style={{ padding: "1.25rem 1.5rem", maxHeight: "65vh", overflowY: "auto" }}>
+          {loading ? (
+            <div style={{ padding: "2rem", textAlign: "center" }}><div className="admin-spinner" style={{ margin: "0 auto" }} /></div>
+          ) : chapters.length === 0 ? (
+            <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--muted)", fontSize: "0.8125rem" }}>
+              No syllabus has been created for this subject yet.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: "0.625rem" }}>
+              {chapters.map((chapter, idx) => {
+                const isExpanded = expandedId === chapter._id;
+                const sortedLessons = [...chapter.lessons].sort((a, b) => a.order - b.order);
+                return (
+                  <div key={chapter._id} className="admin-card" style={{ overflow: "hidden" }}>
+                    <div
+                      onClick={() => setExpandedId(isExpanded ? null : chapter._id)}
+                      style={{
+                        padding: "0.875rem 1.125rem", display: "flex", justifyContent: "space-between", alignItems: "center",
+                        cursor: "pointer", background: isExpanded ? "var(--admin-accent-soft)" : "var(--surface-soft)",
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ margin: 0, fontWeight: 700, fontSize: "0.9rem", color: "var(--foreground)" }}>Chapter {idx + 1}: {chapter.title}</p>
+                        <p style={{ margin: "0.2rem 0 0", fontSize: "0.75rem", color: "var(--muted)" }}>{chapter.lessons.length} lesson{chapter.lessons.length === 1 ? "" : "s"}</p>
+                      </div>
+                      {isExpanded ? <ChevronUp size={16} color="var(--muted)" /> : <ChevronDown size={16} color="var(--muted)" />}
+                    </div>
+                    {isExpanded && (
+                      <div style={{ padding: "0.25rem 1.125rem 0.875rem" }}>
+                        {sortedLessons.length === 0 ? (
+                          <p style={{ color: "var(--muted)", fontSize: "0.8rem", margin: "0.5rem 0" }}>No lessons yet.</p>
+                        ) : (
+                          sortedLessons.map((lesson, lIdx) => (
+                            <div key={lesson._id} style={{ padding: "0.625rem 0", borderTop: lIdx === 0 ? "none" : "1px solid var(--border)" }}>
+                              <p style={{ margin: 0, fontWeight: 600, fontSize: "0.8375rem", color: "var(--foreground)" }}>{lIdx + 1}. {lesson.title}</p>
+                              <div style={{ marginTop: "0.3rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                                {(["video", "quiz", "assignment", "activity"] as const).map((t) => {
+                                  const count = lesson.items.filter((i) => i.type === t).length;
+                                  if (count === 0) return null;
+                                  return (
+                                    <span key={t} style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "var(--muted)", fontSize: "0.75rem", fontWeight: 500 }}>
+                                      {SYLLABUS_ITEM_ICON[t]} {count}
+                                    </span>
+                                  );
+                                })}
+                                {lesson.items.length === 0 && (
+                                  <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>No items yet.</span>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type School = {
   _id: string;
@@ -174,6 +285,7 @@ function SchoolDetailView({
   const [students, setStudents] = useState<SchoolStudent[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [viewingSubject, setViewingSubject] = useState<SyllabusSubject | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -336,14 +448,20 @@ function SchoolDetailView({
             ) : (
               <div style={{ display: "grid", gap: "0.625rem", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
                 {subjectsForSelectedClass.map(subject => (
-                  <div
+                  <button
                     key={subject._id}
+                    onClick={() => setViewingSubject(subject)}
+                    title={`View ${subject.name} syllabus`}
                     style={{
                       display: "flex", alignItems: "center", gap: "0.75rem",
                       padding: "0.75rem 0.875rem", borderRadius: "0.75rem",
-                      background: "var(--surface-soft)",
+                      background: "var(--surface-soft)", border: "none",
                       borderLeft: `3px solid ${subject.color}`,
+                      cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                      transition: "background 0.15s, transform 0.1s",
                     }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--admin-accent-soft)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface-soft)"; }}
                   >
                     <div style={{
                       width: 34, height: 34, borderRadius: "0.625rem", flexShrink: 0,
@@ -355,7 +473,7 @@ function SchoolDetailView({
                     <span style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {subject.name}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -420,6 +538,10 @@ function SchoolDetailView({
           </div>
         )}
       </div>
+
+      {viewingSubject && (
+        <SyllabusModal subject={viewingSubject} onClose={() => setViewingSubject(null)} />
+      )}
     </div>
   );
 }
